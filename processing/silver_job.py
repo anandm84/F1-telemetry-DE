@@ -5,7 +5,7 @@ spark = SparkSession.builder \
     .appName("F1 Silver Layer") \
     .getOrCreate()
 
-df = spark.read.json("/opt/project/data/bronze/laps.json")
+df = spark.read.json("/opt/project/data/bronze/laps.ndjson")
 
 cleaned = df.select(
     col("Driver").alias("driver"),

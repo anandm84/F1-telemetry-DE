@@ -13,7 +13,7 @@ os.makedirs("data/bronze", exist_ok=True)
 for message in consumer:
     lap_data = message.value
     
-    with open("data/bronze/laps.json", "a") as f:
+    with open("data/bronze/laps.ndjson", "a") as f:
         f.write(json.dumps(lap_data) + "\n")
 
     print("Written to bronze")

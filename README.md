@@ -78,56 +78,71 @@ data/gold/driver_summary (Parquet)
 - Python 3.10+
 - Internet access (first FastF1 data pull)
 
-## Setup
+## How to Run (End-to-End)
+
+From the project root, run these steps in order.
 
 1. Create and activate a virtual environment.
-2. Install Python dependencies:
+2. Install dependencies:
 
 ```bash
 pip install -r requirements.txt
-pip install pyspark
 ```
 
-Note: `pyspark` is used by the processing jobs but is not currently listed in `requirements.txt`.
-
-## Start Infrastructure
+3. Start infrastructure:
 
 ```bash
 docker compose up -d zookeeper kafka spark-master spark-worker
 ```
 
-Services exposed:
+4. Confirm services are up:
+
+```bash
+docker ps
+```
+
+Expected key endpoints:
 
 - Kafka: `localhost:9092`
 - Spark Master UI: `http://localhost:8080`
 - Spark Master endpoint: `spark://localhost:7077`
 
-## Run the Pipeline
-
-Run each step in order.
-
-1. Start bronze consumer (terminal 1):
+5. Start Bronze consumer (terminal 1):
 
 ```bash
 python ingestion/bronze_consumer.py
 ```
 
-2. Start producer (terminal 2):
+6. Start Producer (terminal 2):
 
 ```bash
 python ingestion/producer.py
 ```
 
-3. Run Silver Spark job (inside Spark container):
+7. Build Silver layer (terminal 3):
 
 ```bash
 docker exec -it spark-master /opt/spark/bin/spark-submit /opt/project/processing/silver_job.py
 ```
 
-4. Run Gold Spark job (inside Spark container):
+8. Build Gold layer (terminal 3):
 
 ```bash
 docker exec -it spark-master /opt/spark/bin/spark-submit /opt/project/processing/gold_job.py
+```
+
+9. Verify outputs:
+
+```bash
+ls data/bronze
+ls data/silver/lap_times
+ls data/gold/driver_summary
+```
+
+10. Stop infrastructure when done:
+
+```bash
+docker compose down
 ```
 
 ## Data Outputs

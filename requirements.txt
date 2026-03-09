@@ -2,3 +2,4 @@ requests
 kafka-python
 pandas
 fastf1
+pyspark

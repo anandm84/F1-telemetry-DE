@@ -11,7 +11,7 @@ producer = KafkaProducer(
 )
 
 def fetch_lap_data():
-    session = fastf1.get_session(2023, 1, 'R')  # Bahrain 2023 Race
+    session = fastf1.get_session(2026, 1, 'FP3')  # Bahrain 2026 Race
     session.load()
 
     laps = session.laps[['Driver', 'LapNumber', 'LapTime', 
