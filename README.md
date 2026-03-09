@@ -4,11 +4,11 @@ End-to-end mini data engineering project for Formula 1 lap timing data using Fas
 
 ## Overview
 
-This project ingests lap data for the **2023 Bahrain Grand Prix race session** and processes it through medallion layers:
+This project ingests lap data for a configurable FastF1 session and processes it through medallion layers:
 
 1. **Ingestion Producer** fetches lap records from FastF1 and streams them to Kafka.
-2. **Bronze Consumer** reads from Kafka and appends raw JSON records to disk.
-3. **Silver Job** reads raw JSON with Spark and keeps selected cleaned columns.
+2. **Bronze Consumer** reads from Kafka and writes raw NDJSON shards grouped by driver+session (with Kafka metadata) to disk.
+3. **Silver Job** runs as a compact Spark batch transform with schema enforcement, timestamp normalization, deduplication, and type-safe metrics.
 4. **Gold Job** aggregates silver data into driver-level summary metrics.
 
 ## Architecture
@@ -26,7 +26,7 @@ Kafka topic: f1_lap_times
 ingestion/bronze_consumer.py
    |
    v
-data/bronze/laps.json
+data/bronze/laps.ndjson.session-<SESSION>.driver-<DRIVER>.ndjson
    |
    v
 processing/silver_job.py (Spark)
@@ -125,7 +125,7 @@ python ingestion/producer.py
 docker exec -it spark-master /opt/spark/bin/spark-submit /opt/project/processing/silver_job.py
 ```
 
-8. Build Gold layer (terminal 3):
+8. Build Gold layer (terminal 4):
 
 ```bash
 docker exec -it spark-master /opt/spark/bin/spark-submit /opt/project/processing/gold_job.py
@@ -147,20 +147,24 @@ docker compose down
 
 ## Data Outputs
 
-- Bronze: `data/bronze/laps.json` (newline-delimited JSON)
+- Bronze: `data/bronze/laps.ndjson.session-<SESSION>.driver-<DRIVER>.ndjson` (one append-only NDJSON file per driver+session; raw payload + Kafka metadata)
 - Silver: `data/silver/lap_times/` (Parquet)
 - Gold: `data/gold/driver_summary/` (Parquet)
 
 ## Notes and Current Limitations
 
 - `airflow/dags/f1_pipeline_dag.py` is currently empty; Airflow orchestration is not implemented yet.
-- Producer is hardcoded to `fastf1.get_session(2023, 1, 'R')`.
-- `lap_time` is stored as string in current flow; averaging in Gold may require explicit time-to-numeric conversion for robust results.
-- There is a naming mismatch in repo artifacts: sample data file `laps.ndjson` exists, while consumer writes `laps.json`.
+- Gold aggregation is still batch-style and should be migrated to streaming aggregations in the next phase.
+- Bronze flush behavior can be tuned with `BRONZE_BATCH_SIZE` and `BRONZE_FLUSH_INTERVAL_SECONDS` env vars.
+- Bronze idle finalize/exit can be tuned with `BRONZE_MAX_IDLE_SECONDS` and `BRONZE_EXIT_ON_IDLE`.
+- Bronze consumer offset replay behavior can be tuned with `KAFKA_AUTO_OFFSET_RESET` (default `earliest`).
+- Rerun policy options: set `BRONZE_RUN_ID` to write run-specific files, or set `BRONZE_CLEAR_SESSION_ON_START=true` (+ `BRONZE_TARGET_SESSION`) to clear files before replay.
+- Silver output file count can be tuned with `SILVER_OUTPUT_FILES` (default `1`).
+- Producer emits lap/sector durations as `HH:MM:SS:MMMM` for easier downstream parsing.
 
 ## Next Improvements
 
-- Add configurable race/session parameters (season, round, session type).
-- Parse lap times into numeric milliseconds before Silver/Gold aggregation.
+- Add driver/race dimension tables for richer analytics joins.
+- Migrate Gold to watermark-aware streaming aggregations.
 - Build a real Airflow DAG for scheduling and dependency management.
 - Add tests and data quality checks per layer.
