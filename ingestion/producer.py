@@ -13,7 +13,7 @@ KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "f1_lap_times")
 RACE_YEAR = int(os.getenv("RACE_YEAR", "2026"))
 RACE_ROUND = int(os.getenv("RACE_ROUND", "1"))
-RACE_SESSION = os.getenv("RACE_SESSION", "R")
+RACE_SESSION = os.getenv("RACE_SESSION", "Q")
 SEND_INTERVAL_SECONDS = float(os.getenv("SEND_INTERVAL_SECONDS", "1"))
 
 producer = KafkaProducer(

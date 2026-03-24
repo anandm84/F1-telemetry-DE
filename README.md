@@ -9,7 +9,7 @@ This project ingests lap data for a configurable FastF1 session and processes it
 1. **Ingestion Producer** fetches lap records from FastF1 and streams them to Kafka.
 2. **Bronze Consumer** reads from Kafka and writes raw NDJSON shards grouped by driver+session (with Kafka metadata) to disk.
 3. **Silver Job** runs as a compact Spark batch transform with schema enforcement, timestamp normalization, deduplication, and type-safe metrics.
-4. **Gold Job** aggregates silver data into driver-level summary metrics.
+4. **Gold Job** builds analytics-ready Gold tables for driver pace, tire performance, and sector analysis.
 
 ## Architecture
 
@@ -38,7 +38,7 @@ data/silver/lap_times (Parquet)
 processing/gold_job.py (Spark)
    |
    v
-data/gold/driver_summary (Parquet)
+data/gold/driver_pace, tire_performance, sector_analysis (Parquet)
 ```
 
 ## Tech Stack
@@ -136,7 +136,9 @@ docker exec -it spark-master /opt/spark/bin/spark-submit /opt/project/processing
 ```bash
 ls data/bronze
 ls data/silver/lap_times
-ls data/gold/driver_summary
+ls data/gold/driver_pace
+ls data/gold/tire_performance
+ls data/gold/sector_analysis
 ```
 
 10. Stop infrastructure when done:
@@ -145,26 +147,61 @@ ls data/gold/driver_summary
 docker compose down
 ```
 
+## Automated Run (Airflow)
+
+You can run the full pipeline automatically via Airflow in Docker.
+
+1. Start core services and Airflow:
+
+```bash
+docker compose up -d zookeeper kafka airflow
+```
+
+2. Open Airflow UI:
+
+```text
+http://localhost:8081
+```
+
+Login credentials:
+
+- Username: `admin`
+- Password: `admin`
+
+3. Trigger DAG:
+
+- DAG ID: `f1_pipeline`
+- Task flow: `ingest_to_bronze -> build_silver -> build_gold`
+
+Notes:
+
+- The DAG starts `bronze_consumer.py` first, then `producer.py`, then waits for consumer idle-exit.
+- DAG uses `KAFKA_BOOTSTRAP_SERVERS=kafka:9092` for container networking.
+- Each run uses a unique `KAFKA_GROUP_ID` + `BRONZE_RUN_ID` based on Airflow `{{ ts_nodash }}`.
+
 ## Data Outputs
 
 - Bronze: `data/bronze/laps.ndjson.session-<SESSION>.driver-<DRIVER>.ndjson` (one append-only NDJSON file per driver+session; raw payload + Kafka metadata)
 - Silver: `data/silver/lap_times/` (Parquet)
-- Gold: `data/gold/driver_summary/` (Parquet)
+- Gold Driver Pace: `data/gold/driver_pace/`
+- Gold Tire Performance: `data/gold/tire_performance/`
+- Gold Sector Analysis: `data/gold/sector_analysis/`
 
 ## Notes and Current Limitations
 
-- `airflow/dags/f1_pipeline_dag.py` is currently empty; Airflow orchestration is not implemented yet.
 - Gold aggregation is still batch-style and should be migrated to streaming aggregations in the next phase.
 - Bronze flush behavior can be tuned with `BRONZE_BATCH_SIZE` and `BRONZE_FLUSH_INTERVAL_SECONDS` env vars.
 - Bronze idle finalize/exit can be tuned with `BRONZE_MAX_IDLE_SECONDS` and `BRONZE_EXIT_ON_IDLE`.
 - Bronze consumer offset replay behavior can be tuned with `KAFKA_AUTO_OFFSET_RESET` (default `earliest`).
 - Rerun policy options: set `BRONZE_RUN_ID` to write run-specific files, or set `BRONZE_CLEAR_SESSION_ON_START=true` (+ `BRONZE_TARGET_SESSION`) to clear files before replay.
 - Silver output file count can be tuned with `SILVER_OUTPUT_FILES` (default `1`).
+- Gold output file count can be tuned with `GOLD_OUTPUT_FILES` (default `1`).
 - Producer emits lap/sector durations as `HH:MM:SS:MMMM` for easier downstream parsing.
+- Airflow ingestion runs `bronze_consumer.py` first, then `producer.py`, then waits for consumer idle-exit before Silver/Gold.
+- For manual Spark-submit runs, Docker services (`zookeeper`, `kafka`, `spark-master`, `spark-worker`) must be up before Silver/Gold.
 
 ## Next Improvements
 
 - Add driver/race dimension tables for richer analytics joins.
 - Migrate Gold to watermark-aware streaming aggregations.
-- Build a real Airflow DAG for scheduling and dependency management.
-- Add tests and data quality checks per layer.
+- Add data quality checks and assertions (schema, nulls, ranges) before writing Gold.

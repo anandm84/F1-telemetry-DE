@@ -3,3 +3,4 @@ kafka-python
 pandas
 fastf1
 pyspark
+airflow
