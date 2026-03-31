@@ -1,5 +1,19 @@
-/cache
-/venv
-/__pycache__
+# Python
+__pycache__/
 *.pyc
-/venv
+/venv/
+
+# Generated data (reproducible from pipeline)
+/data/
+
+# FastF1 cache
+/cache/
+
+# Word temp / lock files
+~$*
+~WRL*.tmp
+
+# Claude Code
+.claude/
+
+plan.md

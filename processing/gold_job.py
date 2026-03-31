@@ -3,8 +3,9 @@ import os
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import avg, count, min, stddev
 
-SILVER_PATH = "/opt/project/data/silver/lap_times"
-GOLD_BASE_PATH = "/opt/project/data/gold"
+PROJECT_ROOT = os.getenv("F1_PROJECT_ROOT", "/opt/project")
+SILVER_PATH = f"{PROJECT_ROOT}/data/silver/lap_times"
+GOLD_BASE_PATH = f"{PROJECT_ROOT}/data/gold"
 GOLD_OUTPUT_FILES = int(os.getenv("GOLD_OUTPUT_FILES", "1"))
 
 spark = (

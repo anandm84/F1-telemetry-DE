@@ -4,9 +4,10 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import coalesce, col, length, lit, regexp_extract, to_timestamp, trim, upper, when
 from pyspark.sql.types import DoubleType, IntegerType, LongType, StringType, StructField, StructType
 
-BRONZE_PATH = "/opt/project/data/bronze"
+PROJECT_ROOT = os.getenv("F1_PROJECT_ROOT", "/opt/project")
+BRONZE_PATH = f"{PROJECT_ROOT}/data/bronze/laps"
 BRONZE_GLOB = "laps.ndjson.session-*.driver-*.ndjson"
-SILVER_PATH = "/opt/project/data/silver/lap_times"
+SILVER_PATH = f"{PROJECT_ROOT}/data/silver/lap_times"
 SILVER_OUTPUT_FILES = int(os.getenv("SILVER_OUTPUT_FILES", "1"))
 
 spark = (
@@ -24,6 +25,9 @@ schema = StructType(
         StructField("Sector2Time", StringType(), True),
         StructField("Sector3Time", StringType(), True),
         StructField("Compound", StringType(), True),
+        StructField("PitInTime_ms", LongType(), True),
+        StructField("PitOutTime_ms", LongType(), True),
+        StructField("data_type", StringType(), True),
         StructField("event_ts", StringType(), True),
         StructField("race_year", IntegerType(), True),
         StructField("race_round", IntegerType(), True),
@@ -109,6 +113,8 @@ silver_df = (
         "sector2_ms",
         "sector3_ms",
         "tire_compound",
+        "PitInTime_ms",
+        "PitOutTime_ms",
         "_kafka_topic",
         "_kafka_partition",
         "_kafka_offset",
