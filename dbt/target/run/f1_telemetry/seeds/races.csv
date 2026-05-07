@@ -1,0 +1,11 @@
+
+    
+    
+    truncate table "warehouse"."main_seeds"."races";
+    -- dbt seed --
+    
+          COPY "warehouse"."main_seeds"."races" FROM 'C:\Users\Anand\Desktop\projects\f1-telemetry\dbt\seeds\races.csv' (FORMAT CSV, HEADER TRUE, DELIMITER ',')
+        
+
+;
+  

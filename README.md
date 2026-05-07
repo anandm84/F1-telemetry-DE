@@ -1,10 +1,12 @@
-# F1 Telemetry Data Engineering Pipeline
+# F1 Telemetry Data Engineering & Curation Pipeline
 
-End-to-end data engineering project for Formula 1 telemetry data using FastF1, Kafka, and Spark with a Bronze/Silver/Gold medallion architecture. Designed as a foundation for ML models, analytics dashboards, and an MCP server.
+End-to-end data engineering and curation project for Formula 1 telemetry data using FastF1, Kafka, dbt, and DuckDB with a Bronze/Silver/Gold medallion architecture. The repository serves two audiences: (a) engineers wanting a working ingest+transform pipeline, and (b) reviewers / data stewards looking at the curation deliverables under [`docs/curation/`](docs/curation/) (data dictionary, provenance log, licensing memo, preservation plan, FAIR self-assessment, and a reproducible sample bundle).
+
+The curation work is the IS547 (Spring 2026) self-directed course project. See [`docs/curation/REPORT.md`](docs/curation/REPORT.md) for the narrative.
 
 ## Overview
 
-The pipeline ingests multiple data types from FastF1 for any configurable session, streams them through Kafka into raw Bronze files, then processes them through typed Silver and analytics-ready Gold layers.
+The pipeline ingests multiple data types from FastF1 for any configurable year (or single round/session), streams them through Kafka into raw Bronze NDJSON files partitioned by session, and transforms them into typed Silver and analytics-ready Gold tables in DuckDB via dbt.
 
 **Data types ingested:**
 - **Lap times** — per-driver lap, sector times, tire compound, pit stop flags
@@ -12,9 +14,9 @@ The pipeline ingests multiple data types from FastF1 for any configurable sessio
 - **Weather snapshots** — track/air temp, humidity, pressure, wind speed, rainfall
 
 **Gold layer outputs:**
-- Aggregation tables — driver pace, tire performance, sector analysis
-- Dimension tables — `dim_drivers`, `dim_circuits`, `dim_races`
-- Fact tables — `fact_race_results`, `fact_pit_stops`, `fact_weather_snapshots`
+- Aggregations: `driver_pace`, `tire_performance`, `sector_analysis`
+- Dimensions: `dim_drivers`, `dim_circuits`, `dim_races`
+- Facts: `fact_race_results`, `fact_pit_stops`, `fact_weather_snapshots`
 
 ## Architecture
 
@@ -22,28 +24,28 @@ The pipeline ingests multiple data types from FastF1 for any configurable sessio
 FastF1 API
     |
     v
-ingestion/producer.py  (unified -- loads session once, emits all data types)
+ingestion/producer.py        (iterates rounds + sessions for a given year)
     |
-    |-->  Kafka: f1_lap_times ----> bronze_consumer.py ----> data/bronze/laps/
-    |-->  Kafka: f1_race_results -> results_consumer.py ---> data/bronze/race_results/
-    '-->  Kafka: f1_weather ------> weather_consumer.py ---> data/bronze/weather/
-                                                                |
-                                                                v
-                          silver_job.py ---------------  data/silver/lap_times
-                          silver_race_results_job.py --  data/silver/race_results
-                          silver_pit_stops_job.py -----  data/silver/pit_stops
-                          silver_weather_job.py -------  data/silver/weather
-                                                                |
-                                                                v
-                          gold_job.py ----------  data/gold/{driver_pace, tire_performance, sector_analysis}
-                          gold_dimensions_job.py   data/gold/dims/{dim_drivers, dim_circuits, dim_races}
-                          gold_facts_job.py -----  data/gold/facts/{fact_race_results, fact_pit_stops, ...}
+    |-->  Kafka: f1_lap_times ----> bronze_consumer.py ----> data/bronze/laps/{year}_{round}_{session}/
+    |-->  Kafka: f1_race_results -> results_consumer.py ---> data/bronze/race_results/{year}_{round}_{session}/
+    '-->  Kafka: f1_weather ------> weather_consumer.py ---> data/bronze/weather/{year}_{round}_{session}/
+                                                                 |
+                                                                 v
+                          dbt staging (silver) -- main_silver.stg_{laps, race_results, pit_stops, weather}
+                                                                 |
+                                                                 v
+                          dbt marts (gold) ----- main_gold.{driver_pace, tire_performance, sector_analysis,
+                                                            dim_drivers, dim_circuits, dim_races,
+                                                            fact_race_results, fact_pit_stops, fact_weather_snapshots}
+                                                                 |
+                                                                 v
+                                                       data/warehouse.duckdb
 ```
 
 **Historical backfill** (bypasses Kafka, writes directly to bronze):
 ```
-ingestion/backfill.py --> data/bronze/{laps, race_results, weather}/
-                      '-- data/backfill_manifest.jsonl  (resumable)
+ingestion/backfill.py --> data/bronze/{laps, race_results, weather}/{year}_{round}_{session}/
+                      '-- data/backfill_manifest.jsonl   (resumable)
 ```
 
 ## Tech Stack
@@ -52,11 +54,12 @@ ingestion/backfill.py --> data/bronze/{laps, race_results, weather}/
 |---|---|
 | Data source | FastF1 Python library |
 | Message queue | Apache Kafka (Confluent 7.4.0) |
-| Batch processing | Apache Spark / PySpark 3.5.0 |
+| Transformation | dbt-duckdb 1.10 |
+| Warehouse | DuckDB (single-file, in-process) |
 | Orchestration | Apache Airflow 2.9.3 |
 | Containers | Docker Compose |
 | Language | Python 3.10+ |
-| Formats | NDJSON (bronze), Parquet (silver/gold) |
+| Formats | NDJSON (bronze), DuckDB tables (silver/gold) |
 
 ## Repository Structure
 
@@ -65,48 +68,63 @@ ingestion/backfill.py --> data/bronze/{laps, race_results, weather}/
 ├── airflow/
 │   ├── Dockerfile
 │   └── dags/
-│       ├── f1_pipeline_dag.py     # Streaming pipeline DAG
+│       ├── f1_pipeline_dag.py     # Streaming pipeline DAG (year-parameterized)
 │       └── f1_backfill_dag.py     # Historical backfill DAG
 ├── ingestion/
-│   ├── producer.py                # Unified FastF1 -> Kafka producer
-│   ├── bronze_consumer.py         # Laps consumer -> data/bronze/laps/
-│   ├── results_consumer.py        # Results consumer -> data/bronze/race_results/
-│   ├── weather_consumer.py        # Weather consumer -> data/bronze/weather/
-│   └── backfill.py                # Historical multi-session backfill
-├── processing/
-│   ├── silver_job.py              # Bronze laps -> Silver lap_times
-│   ├── silver_race_results_job.py # Bronze race_results -> Silver race_results
-│   ├── silver_pit_stops_job.py    # Bronze laps (filtered) -> Silver pit_stops
-│   ├── silver_weather_job.py      # Bronze weather -> Silver weather
-│   ├── gold_job.py                # Silver -> Gold aggregations
-│   ├── gold_dimensions_job.py     # Silver -> Gold dim tables (uses FastF1 + PySpark)
-│   └── gold_facts_job.py          # Silver -> Gold fact tables
+│   ├── producer.py                # FastF1 -> Kafka, iterates rounds+sessions
+│   ├── bronze_consumer.py         # Laps consumer       -> data/bronze/laps/{session_key}/
+│   ├── results_consumer.py        # Results consumer    -> data/bronze/race_results/{session_key}/
+│   ├── weather_consumer.py        # Weather consumer    -> data/bronze/weather/{session_key}/
+│   ├── backfill.py                # Historical multi-session backfill
+│   └── load_schedules.py          # FastF1 schedule -> dbt seed CSVs
+├── dbt/
+│   ├── dbt_project.yml
+│   ├── profiles.yml               # DuckDB at data/warehouse.duckdb
+│   ├── macros/
+│   │   ├── bronze_read.sql        # NDJSON read helper using DuckDB read_json
+│   │   └── duration_to_ms.sql     # HH:MM:SS:MMMM parser
+│   ├── models/
+│   │   ├── staging/               # silver layer (cast, dedup, filter)
+│   │   ├── intermediate/          # int_drivers_latest (window pick)
+│   │   └── marts/                 # gold layer (dims, facts, aggregations)
+│   └── seeds/
+│       ├── circuits.csv
+│       └── races.csv
+├── scripts/
+│   ├── build_sample_bundle.py     # Export curated sample to docs/curation/sample_output/
+│   ├── checksums.py               # SHA-256 manifest writer/verifier for the bundle
+│   ├── cleaning_log.py            # Append row-count snapshot to CLEANING_LOG.md
+│   └── parity_snapshot.py         # Snapshot/compare gold table stats
+├── docs/
+│   └── curation/                  # IS547 curation deliverables (see § Curation Deliverables)
+│       ├── REPORT.md              # Final narrative report
+│       ├── data_dictionary.{md,csv}
+│       ├── metadata.{xml,json}    # Dublin Core
+│       ├── PROVENANCE.md
+│       ├── prov.jsonld            # W3C PROV-O machine-readable provenance
+│       ├── CLEANING_LOG.md
+│       ├── LICENSING.md
+│       ├── PRESERVATION.md
+│       ├── REPRODUCE.md
+│       ├── FAIR_assessment.md
+│       ├── RISK_REGISTER.md
+│       ├── workflow.mmd
+│       ├── checksums.sha256
+│       └── sample_output/         # 2024 R1 example bundle (Parquet + CSV + bronze excerpts)
+├── is-547/                        # Course materials (instructions, plan, peer review)
 ├── data/
-│   ├── bronze/                    # Raw NDJSON, append-only
-│   │   ├── laps/
-│   │   ├── race_results/
-│   │   └── weather/
-│   ├── silver/                    # Typed Parquet, deduplicated
-│   │   ├── lap_times/
-│   │   ├── race_results/
-│   │   ├── pit_stops/
-│   │   └── weather/
-│   └── gold/                      # Analytics-ready Parquet
-│       ├── driver_pace/
-│       ├── tire_performance/
-│       ├── sector_analysis/
-│       ├── dims/
-│       │   ├── dim_drivers/
-│       │   ├── dim_circuits/
-│       │   └── dim_races/
-│       └── facts/
-│           ├── fact_race_results/
-│           ├── fact_pit_stops/
-│           └── fact_weather_snapshots/
+│   ├── bronze/                    # Raw NDJSON, partitioned by session_key
+│   │   ├── laps/{year}_{round}_{session}/laps.ndjson.driver-{D}.ndjson
+│   │   ├── race_results/{year}_{round}_{session}/results.ndjson
+│   │   └── weather/{year}_{round}_{session}/weather.ndjson
+│   └── warehouse.duckdb           # Silver + gold tables (built by dbt)
 ├── cache/                         # FastF1 local cache (auto-managed)
 ├── compose.yml
 ├── requirements.txt
-└── plan.md                        # Detailed implementation plan
+├── CITATION.cff                   # Software/dataset citation
+├── LICENSE                        # MIT (code)
+├── LICENSE-DATA.md                # CC-BY-4.0 (curated data and documentation)
+└── plan.md                        # Original engineering plan (Mar 2026)
 ```
 
 ## Prerequisites
@@ -115,146 +133,104 @@ ingestion/backfill.py --> data/bronze/{laps, race_results, weather}/
 - Python 3.10+
 - Internet access (first FastF1 data pull is cached locally in `cache/`)
 
-## Quick Start (Manual)
+## Quick Start
 
-This approach runs producers/consumers on the host and Spark jobs inside the `spark-master` container via `docker exec`. The `gold_dimensions_job.py` is an exception — it imports `fastf1` (not available in the Spark image) and runs PySpark in local mode, so it executes on the host.
-
-### 1. Set up environment
+### 1. Install dependencies
 
 ```bash
 python -m venv venv && source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Start infrastructure
+### 2. Backfill one round (no Kafka required)
+
+The simplest end-to-end smoke test bypasses Kafka and writes directly to bronze:
 
 ```bash
-docker compose up -d zookeeper kafka spark-master spark-worker
+# Ingest all sessions of round 1, 2024
+BACKFILL_YEARS=2024 BACKFILL_ROUNDS=1 BACKFILL_SESSIONS=FP1,FP2,FP3,Q,R \
+    python ingestion/backfill.py
+
+# Refresh dbt seeds (FastF1 schedule -> CSVs)
+F1_SEED_YEARS=2024 python ingestion/load_schedules.py
+
+# Build silver + gold and run tests
+cd dbt && DBT_PROFILES_DIR=. dbt build
 ```
 
-Key endpoints:
-- Kafka: `localhost:9092`
-- Spark Master UI: `http://localhost:8080`
-- Spark endpoint: `spark://localhost:7077`
+The warehouse lands at `data/warehouse.duckdb`. Open it with the DuckDB CLI or any client.
 
-### 3. Create bronze directories
+### 3. Backfill an entire year
 
 ```bash
-mkdir -p data/bronze/laps data/bronze/race_results data/bronze/weather
+BACKFILL_YEARS=2024 BACKFILL_ROUNDS=all BACKFILL_SESSIONS=FP1,FP2,FP3,Q,S,SQ,R \
+    python ingestion/backfill.py
+F1_SEED_YEARS=2024 python ingestion/load_schedules.py
+cd dbt && DBT_PROFILES_DIR=. dbt build
 ```
 
-### 4. Run the streaming pipeline
+The backfill manifest at `data/backfill_manifest.jsonl` makes reruns idempotent; sessions already marked `ok` are skipped.
 
-**Terminal 1 — start all consumers:**
+### 4. Streaming pipeline via Kafka
 
-```bash
-python ingestion/bronze_consumer.py &
-python ingestion/results_consumer.py &
-python ingestion/weather_consumer.py &
-```
-
-**Terminal 2 — run producer (blocks until done):**
-
-```bash
-RACE_YEAR=2024 RACE_ROUND=1 RACE_SESSION=R python ingestion/producer.py
-```
-
-Wait for all consumers to exit on idle (~20s after producer finishes).
-
-**Terminal 3 — build Silver:**
-
-```bash
-docker exec -it spark-master /opt/spark/bin/spark-submit /opt/project/processing/silver_job.py
-docker exec -it spark-master /opt/spark/bin/spark-submit /opt/project/processing/silver_race_results_job.py
-docker exec -it spark-master /opt/spark/bin/spark-submit /opt/project/processing/silver_pit_stops_job.py
-docker exec -it spark-master /opt/spark/bin/spark-submit /opt/project/processing/silver_weather_job.py
-```
-
-**Build Gold:**
-
-```bash
-# Aggregation tables (runs inside Spark cluster)
-docker exec -it spark-master /opt/spark/bin/spark-submit /opt/project/processing/gold_job.py
-
-# Dimension tables (runs locally — imports fastf1 which is not in the Spark image)
-F1_PROJECT_ROOT=. python processing/gold_dimensions_job.py
-
-# Fact tables (runs inside Spark cluster)
-docker exec -it spark-master /opt/spark/bin/spark-submit /opt/project/processing/gold_facts_job.py
-```
-
-> **Note:** `gold_dimensions_job.py` imports `fastf1` to fetch circuit/race schedule data and creates a local PySpark session. When running on the host, set `F1_PROJECT_ROOT=.` so paths resolve to the repo root instead of `/opt/project/`.
-
-### 5. Verify outputs
-
-```bash
-ls data/bronze/laps/
-ls data/bronze/race_results/
-ls data/bronze/weather/
-ls data/silver/lap_times/
-ls data/silver/race_results/
-ls data/silver/pit_stops/
-ls data/silver/weather/
-ls data/gold/dims/dim_drivers/
-ls data/gold/facts/fact_race_results/
-```
-
-## Automated Run (Airflow)
-
-### Start all services
+Start Kafka and Airflow:
 
 ```bash
 docker compose up -d
 ```
 
-This starts Zookeeper, Kafka, Spark master + worker, and Airflow. Key endpoints:
+Then in three terminals (or trigger the Airflow DAG, see below):
+
+```bash
+# Terminal 1: laps consumer
+python ingestion/bronze_consumer.py
+
+# Terminal 2: results + weather consumers
+python ingestion/results_consumer.py &
+python ingestion/weather_consumer.py
+
+# Terminal 3: producer
+RACE_YEAR=2024 RACE_ROUND=1 RACE_SESSION=R SPEED_FACTOR=0 \
+    python ingestion/producer.py
+
+# After producer finishes and consumers idle out:
+F1_SEED_YEARS=2024 python ingestion/load_schedules.py
+cd dbt && DBT_PROFILES_DIR=. dbt build
+```
+
+Set `RACE_ROUND=all` and/or `RACE_SESSION=all` to iterate the full season.
+
+## Automated Run (Airflow)
+
+```bash
+docker compose up -d
+```
 
 | Service | URL | Credentials |
 |---|---|---|
 | Airflow Web UI | `http://localhost:8081` | admin / admin |
-| Spark Master UI | `http://localhost:8080` | — |
 
-### Streaming pipeline
+Trigger the `f1_pipeline` DAG. The DAG accepts a JSON config:
 
-Open the Airflow UI and trigger the `f1_pipeline` DAG manually.
+```json
+{"year": 2024, "round": "all", "session": "all", "speed_factor": "0"}
+```
+
+| Param | Default | Description |
+|---|---|---|
+| `year` | `2024` | Season year |
+| `round` | `all` | Round number, comma-separated list, or `all` |
+| `session` | `all` | Session code (`FP1`, `FP2`, `FP3`, `SQ`, `S`, `Q`, `R`), comma list, or `all` |
+| `speed_factor` | `0` | Replay speed multiplier (`0` = no delay; `0.02` = 50x simulated live) |
 
 **DAG task graph:**
 ```
-ingest_to_bronze
-    |-- build_silver_laps
-    |-- build_silver_results
-    |-- build_silver_pit_stops
-    '-- build_silver_weather
-            |-- build_gold_legacy
-            '-- build_gold_dimensions
-                        '-- build_gold_facts
+ingest_to_bronze ─┐
+                  ├─> dbt_build -> dbt_test
+refresh_seeds ────┘
 ```
 
-The `ingest_to_bronze` task runs three consumers in the background (with unique Kafka group IDs and idle-exit enabled), then runs the producer in the foreground. After the producer completes, it waits for all consumers to drain and exit.
-
-Silver jobs run via `docker exec spark-master spark-submit ...`. The `build_gold_dimensions` task runs via `python` inside the Airflow container (which has both `fastf1` and Java/PySpark installed). All other gold jobs use spark-submit.
-
-> **Note:** The DAG uses `SequentialExecutor`, so "parallel" branches run in topological order. The dependency graph is correct and future-proof for `LocalExecutor` or `CeleryExecutor`.
-
-### Historical backfill
-
-Trigger the `f1_backfill` DAG with params:
-
-| Param | Default | Example |
-|---|---|---|
-| `years` | `2023` | `2022,2023,2024` |
-| `rounds` | `all` | `1,5,10` |
-| `sessions` | `R` | `R,Q` |
-| `data_types` | `laps,race_results,weather` | `laps` |
-| `force` | `false` | `true` |
-
-Or run manually from the host:
-
-```bash
-BACKFILL_YEARS=2023,2024 BACKFILL_SESSIONS=R python ingestion/backfill.py
-```
-
-The backfill writes directly to bronze (bypasses Kafka) and maintains a resumable manifest at `data/backfill_manifest.jsonl`. Safe to re-run — silver deduplicates on `record_id`.
+`ingest_to_bronze` starts the three consumers in the background and runs the producer in the foreground; consumers exit on idle. `refresh_seeds` regenerates `dbt/seeds/circuits.csv` and `races.csv` from the FastF1 schedule. `dbt_build` runs `dbt seed && dbt run`; `dbt_test` runs `dbt test`.
 
 ## Configuration Reference
 
@@ -264,10 +240,10 @@ The backfill writes directly to bronze (bypasses Kafka) and maintains a resumabl
 |---|---|---|
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker |
 | `RACE_YEAR` | `2024` | F1 season year |
-| `RACE_ROUND` | `1` | Race round number |
-| `RACE_SESSION` | `R` | Session type (`R`, `Q`, `FP1`, `FP2`, `FP3`, `S`) |
+| `RACE_ROUND` | `1` | Round number, comma list, or `all` |
+| `RACE_SESSION` | `R` | Session code, comma list, or `all` |
 | `DATA_TYPES` | `laps,race_results,weather` | Which data types to emit |
-| `SPEED_FACTOR` | `0.02` | Replay speed multiplier (0.02 = 50x faster) |
+| `SPEED_FACTOR` | `0.02` | Replay speed (0 = no delay) |
 
 ### Bronze Consumers
 
@@ -281,75 +257,112 @@ The backfill writes directly to bronze (bypasses Kafka) and maintains a resumabl
 | `BRONZE_MAX_IDLE_SECONDS` | `20` | Idle timeout before exit |
 | `BRONZE_EXIT_ON_IDLE` | `true` | Exit when idle |
 | `BRONZE_RUN_ID` | `""` | Suffix for run-isolated filenames |
-| `BRONZE_CLEAR_SESSION_ON_START` | `false` | Delete existing session files on startup |
 
 ### Backfill
 
 | Variable | Default | Description |
 |---|---|---|
-| `BACKFILL_YEARS` | `2023` | Comma-separated years to ingest |
+| `BACKFILL_YEARS` | `2023` | Comma-separated years |
 | `BACKFILL_ROUNDS` | `all` | `all` or comma-separated round numbers |
 | `BACKFILL_SESSIONS` | `R` | Comma-separated session codes |
 | `BACKFILL_DATA_TYPES` | `laps,race_results,weather` | Which data types to write |
 | `BACKFILL_MANIFEST_PATH` | `data/backfill_manifest.jsonl` | Resumable manifest file |
 | `BRONZE_BASE_DIR` | `data/bronze` | Base path for bronze subdirs |
 | `BACKFILL_FORCE` | `false` | Re-ingest already-completed sessions |
-| `BACKFILL_SLEEP_SECONDS` | `2` | Pause between sessions |
 
-### Silver / Gold Jobs
+### dbt / Warehouse
 
 | Variable | Default | Description |
 |---|---|---|
-| `F1_PROJECT_ROOT` | `/opt/project` | Base path for data/cache dirs (set `.` for host execution) |
-| `SILVER_OUTPUT_FILES` | `1` | Parquet file count per silver table |
-| `GOLD_OUTPUT_FILES` | `1` | Parquet file count per gold table |
+| `F1_DUCKDB_PATH` | `../data/warehouse.duckdb` | DuckDB file (relative to `dbt/`) |
+| `F1_BRONZE_ROOT` | `../data/bronze` | Bronze base used by `bronze_read` macro |
+| `F1_SEED_YEARS` | `2023,2024` | Years pulled by `load_schedules.py` |
 
 ## Data Outputs
 
-### Bronze (raw NDJSON, append-only)
+### Bronze (raw NDJSON, append-only, partitioned by session)
 
-| Path | Key | Contents |
+| Path | Per-file Key | Contents |
 |---|---|---|
-| `data/bronze/laps/laps.ndjson.session-<S>.driver-<D>.ndjson` | session + driver | Lap times, sector times, pit flags, Kafka metadata |
-| `data/bronze/race_results/results.ndjson.session-<S>.driver-<D>.ndjson` | session + driver | Final position, points, status, team, nationality |
-| `data/bronze/weather/weather.ndjson.session-<S>.ndjson` | session | Temperature, humidity, pressure, wind, rainfall |
+| `data/bronze/laps/{year}_{round}_{session}/laps.ndjson.driver-{D}.ndjson` | driver | Lap times, sector times, pit flags |
+| `data/bronze/race_results/{year}_{round}_{session}/results.ndjson` | session | Final position, points, status for all drivers |
+| `data/bronze/weather/{year}_{round}_{session}/weather.ndjson` | session | Temperature, humidity, pressure, wind, rainfall |
 
-### Silver (typed Parquet, deduplicated on `record_id`)
+### Silver (DuckDB tables, deduplicated on `record_id`)
 
-| Path | Key Columns |
+`main_silver.stg_laps`, `stg_race_results`, `stg_pit_stops`, `stg_weather` — schema-cleaned typed views over bronze.
+
+### Gold (DuckDB tables, analytics-ready)
+
+**Aggregations** (`main_gold`):
+- `driver_pace` — avg/fastest/std-dev lap time per driver per session
+- `tire_performance` — avg lap time per compound per session
+- `sector_analysis` — avg sector times per driver per session
+
+**Dimensions** (`main_gold`):
+- `dim_drivers` — driver_id (PK), full_name, team, nationality
+- `dim_circuits` — circuit_id (PK), circuit_name, country, locality
+- `dim_races` — race_key (PK), year, round, name, circuit_id (FK), date
+
+**Facts** (`main_gold`):
+- `fact_race_results` — positions, points, status per driver per race
+- `fact_pit_stops` — pit timing per driver per lap
+- `fact_weather_snapshots` — weather time-series per session
+
+### Querying
+
+```bash
+duckdb data/warehouse.duckdb
+```
+
+```sql
+select race_year, race_round, session, driver, fastest_lap_ms
+from main_gold.driver_pace
+order by fastest_lap_ms
+limit 10;
+```
+
+## Curation Deliverables
+
+The full IS547 curation package lives under [`docs/curation/`](docs/curation/). Each artifact targets a specific course-concept rubric criterion:
+
+| Artifact | Purpose / course concept |
 |---|---|
-| `data/silver/lap_times/` | driver_id, lap_number, lap_time_ms, sector times, tire_compound |
-| `data/silver/race_results/` | driver_id, position, grid_position, points, status, team |
-| `data/silver/pit_stops/` | driver_id, lap_number, pit_in_ms, pit_out_ms, tire_compound |
-| `data/silver/weather/` | snapshot_index, air/track temp, humidity, pressure, wind, rainfall |
+| [`REPORT.md`](docs/curation/REPORT.md) | Final ~2,400-word narrative tying every decision to course concepts |
+| [`data_dictionary.md`](docs/curation/data_dictionary.md) / [`.csv`](docs/curation/data_dictionary.csv) | Column-level schema + interpretive codebook · *Metadata & documentation* |
+| [`metadata.xml`](docs/curation/metadata.xml) / [`.json`](docs/curation/metadata.json) | Dublin Core descriptive metadata · *Findability* |
+| [`PROVENANCE.md`](docs/curation/PROVENANCE.md) + [`prov.jsonld`](docs/curation/prov.jsonld) | Human prose + W3C PROV-O record · *Provenance & lineage* |
+| [`CLEANING_LOG.md`](docs/curation/CLEANING_LOG.md) | Every cleaning rule with rationale + auto-populated row counts · *Data quality* |
+| [`LICENSING.md`](docs/curation/LICENSING.md) | Responsible-use memo: F1 timing data redistribution decision · *Ethical/legal compliance* |
+| [`PRESERVATION.md`](docs/curation/PRESERVATION.md) | Zenodo deposit plan, format choices, fixity · *Archiving* |
+| [`REPRODUCE.md`](docs/curation/REPRODUCE.md) | Clean-environment recipe with parity ranges · *Reproducibility* |
+| [`FAIR_assessment.md`](docs/curation/FAIR_assessment.md) | 15-principle FAIR scorecard |
+| [`RISK_REGISTER.md`](docs/curation/RISK_REGISTER.md) | Legal / technical / repro / quality / lab risks with mitigations |
+| [`workflow.mmd`](docs/curation/workflow.mmd) | Mermaid workflow diagram (render with `mmdc`) |
+| [`sample_output/`](docs/curation/sample_output/) | Self-contained 2024 R1 bundle: bronze excerpts + silver Parquet + gold Parquet+CSV |
+| [`checksums.sha256`](docs/curation/checksums.sha256) | SHA-256 manifest covering every deposited file |
 
-### Gold (Parquet, analytics-ready)
+**Refresh after a build:**
 
-**Aggregations:**
-- `data/gold/driver_pace/` — avg/fastest/std dev lap time per driver per session
-- `data/gold/tire_performance/` — avg lap time per compound per session
-- `data/gold/sector_analysis/` — avg sector times per driver per session
+```bash
+python scripts/cleaning_log.py            # append row-count snapshot to CLEANING_LOG.md
+python scripts/build_sample_bundle.py --year 2024 --round 1
+python scripts/checksums.py               # write
+python scripts/checksums.py --verify      # verify
+```
 
-**Dimensions:**
-- `data/gold/dims/dim_drivers/` — driver_id (PK), full_name, team, nationality
-- `data/gold/dims/dim_circuits/` — circuit_id (PK), circuit_name, country, locality
-- `data/gold/dims/dim_races/` — race_key (PK), year, round, name, circuit_id (FK), date
-
-**Facts:**
-- `data/gold/facts/fact_race_results/` — positions, points, status per driver per race (FK: race_key, driver_id)
-- `data/gold/facts/fact_pit_stops/` — pit timing per driver per lap (FK: race_key, driver_id)
-- `data/gold/facts/fact_weather_snapshots/` — weather time-series per session (FK: race_key)
+**Citation and license:** see [`CITATION.cff`](CITATION.cff), [`LICENSE`](LICENSE) (MIT for code), [`LICENSE-DATA.md`](LICENSE-DATA.md) (CC-BY-4.0 for derived data and docs). Raw F1 timing data is **not** redistributed — see [`docs/curation/LICENSING.md`](docs/curation/LICENSING.md).
 
 ## Roadmap
 
 | Phase | Description | Status |
 |---|---|---|
 | 1-3 | Expanded ingestion, backfill, dimensional model | Done |
-| 4 | DuckDB query layer over Parquet | Planned |
-| 5 | Feature engineering layer (rolling averages, track history) | Planned |
-| 6 | FastAPI service layer | Planned |
-| 7 | Analytics dashboards (Superset / Grafana) | Planned |
-| 8 | MCP server wrapping the API | Planned |
-| 9 | ML model training and serving (race win prediction) | Planned |
-
-See [plan.md](plan.md) for the detailed implementation plan.
+| 4 | dbt + DuckDB transformation layer | Done |
+| 4.5 | IS547 curation package (data dictionary, metadata, provenance, licensing, preservation, FAIR, risk register, sample bundle) | Done |
+| 5 | Zenodo Sandbox deposit + DOI replacement in metadata | Planned |
+| 6 | Feature engineering layer (rolling averages, track history) | Planned |
+| 7 | FastAPI service layer | Planned |
+| 8 | Analytics dashboards (Superset / Grafana) | Planned |
+| 9 | MCP server wrapping the API | Planned |
+| 10 | ML model training and serving (race win prediction) | Planned |

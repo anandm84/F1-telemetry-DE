@@ -1,0 +1,20 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: "NDJSON files written by Kafka consumers under data/bronze"
+    meta:
+      external_location: "{{ env_var('F1_BRONZE_ROOT', '../data/bronze') }}"
+    tables:
+      - name: laps
+        description: "Per-driver lap telemetry records, partitioned by session sub-folder"
+        meta:
+          external_glob: "laps/*/laps.ndjson.driver-*.ndjson"
+      - name: race_results
+        description: "Per-driver final race results, partitioned by session sub-folder"
+        meta:
+          external_glob: "race_results/*/results.ndjson*"
+      - name: weather
+        description: "Per-session weather snapshots, partitioned by session sub-folder"
+        meta:
+          external_glob: "weather/*/weather.ndjson*"

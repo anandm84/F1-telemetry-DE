@@ -2,10 +2,24 @@ import os
 from datetime import datetime, timedelta
 
 from airflow import DAG
-from airflow.operators.bash import BashOperator
+from airflow.operators.bash import BashOperator # pyright: ignore[reportMissingImports]
 
 PROJECT_ROOT = os.getenv("F1_PROJECT_ROOT", "/opt/project")
-SPARK_SUBMIT = "docker exec spark-master /opt/spark/bin/spark-submit"
+DBT_DIR = f"{PROJECT_ROOT}/dbt"
+DBT_RUN = f"cd {DBT_DIR} && DBT_PROFILES_DIR=."
+
+# Trigger with conf, e.g.:
+#   {"year": 2024, "round": "all", "session": "all"}
+# Round and session each accept an int/code, "all", or a comma-separated list.
+RACE_YEAR_DEFAULT = "2024"
+RACE_ROUND_DEFAULT = "all"
+RACE_SESSION_DEFAULT = "all"
+SPEED_FACTOR_DEFAULT = "0"  # batch mode: no replay delay
+
+YEAR_TPL = f"{{{{ dag_run.conf.get('year', '{RACE_YEAR_DEFAULT}') }}}}"
+ROUND_TPL = f"{{{{ dag_run.conf.get('round', '{RACE_ROUND_DEFAULT}') }}}}"
+SESSION_TPL = f"{{{{ dag_run.conf.get('session', '{RACE_SESSION_DEFAULT}') }}}}"
+SPEED_TPL = f"{{{{ dag_run.conf.get('speed_factor', '{SPEED_FACTOR_DEFAULT}') }}}}"
 
 default_args = {
     "owner": "data-platform",
@@ -21,14 +35,19 @@ with DAG(
     schedule_interval=None,
     catchup=False,
     tags=["f1", "telemetry", "medallion"],
+    params={
+        "year": RACE_YEAR_DEFAULT,
+        "round": RACE_ROUND_DEFAULT,
+        "session": RACE_SESSION_DEFAULT,
+        "speed_factor": SPEED_FACTOR_DEFAULT,
+    },
 ) as dag:
 
     ingest_to_bronze = BashOperator(
         task_id="ingest_to_bronze",
-        cwd=PROJECT_ROOT,  # sets working dir for the whole process tree incl. backgrounded children
+        cwd=PROJECT_ROOT,
         bash_command=(
             "mkdir -p data/bronze/laps data/bronze/race_results data/bronze/weather && "
-            # Laps consumer
             "KAFKA_BOOTSTRAP_SERVERS=kafka:29092 "
             "BRONZE_EXIT_ON_IDLE=true "
             "BRONZE_MAX_IDLE_SECONDS=120 "
@@ -37,7 +56,6 @@ with DAG(
             "BRONZE_RUN_ID={{ ts_nodash }} "
             "python ingestion/bronze_consumer.py & "
             "LAPS_PID=$! && "
-            # Results consumer
             "KAFKA_BOOTSTRAP_SERVERS=kafka:29092 "
             "BRONZE_EXIT_ON_IDLE=true "
             "BRONZE_MAX_IDLE_SECONDS=120 "
@@ -46,7 +64,6 @@ with DAG(
             "BRONZE_RUN_ID={{ ts_nodash }} "
             "python ingestion/results_consumer.py & "
             "RESULTS_PID=$! && "
-            # Weather consumer
             "KAFKA_BOOTSTRAP_SERVERS=kafka:29092 "
             "BRONZE_EXIT_ON_IDLE=true "
             "BRONZE_MAX_IDLE_SECONDS=120 "
@@ -55,58 +72,30 @@ with DAG(
             "BRONZE_RUN_ID={{ ts_nodash }} "
             "python ingestion/weather_consumer.py & "
             "WEATHER_PID=$! && "
-            # Unified producer (blocking)
-            "KAFKA_BOOTSTRAP_SERVERS=kafka:29092 "
+            f"KAFKA_BOOTSTRAP_SERVERS=kafka:29092 "
+            f"RACE_YEAR={YEAR_TPL} "
+            f"RACE_ROUND={ROUND_TPL} "
+            f"RACE_SESSION={SESSION_TPL} "
+            f"SPEED_FACTOR={SPEED_TPL} "
             "python ingestion/producer.py && "
-            # Wait for all consumers to drain and exit
             "wait"
         ),
     )
 
-    build_silver_laps = BashOperator(
-        task_id="build_silver_laps",
-        bash_command=f"{SPARK_SUBMIT} {PROJECT_ROOT}/processing/silver_job.py",
-    )
-
-    build_silver_results = BashOperator(
-        task_id="build_silver_results",
-        bash_command=f"{SPARK_SUBMIT} {PROJECT_ROOT}/processing/silver_race_results_job.py",
-    )
-
-    build_silver_pit_stops = BashOperator(
-        task_id="build_silver_pit_stops",
-        bash_command=f"{SPARK_SUBMIT} {PROJECT_ROOT}/processing/silver_pit_stops_job.py",
-    )
-
-    build_silver_weather = BashOperator(
-        task_id="build_silver_weather",
-        bash_command=f"{SPARK_SUBMIT} {PROJECT_ROOT}/processing/silver_weather_job.py",
-    )
-
-    build_gold_legacy = BashOperator(
-        task_id="build_gold_legacy",
-        bash_command=f"{SPARK_SUBMIT} {PROJECT_ROOT}/processing/gold_job.py",
-    )
-
-    # gold_dimensions_job imports fastf1 (not installed in spark-master) so it
-    # runs via Python in the Airflow container, which has both fastf1 and Java/PySpark.
-    build_gold_dimensions = BashOperator(
-        task_id="build_gold_dimensions",
+    refresh_seeds = BashOperator(
+        task_id="refresh_seeds",
         cwd=PROJECT_ROOT,
-        bash_command="python processing/gold_dimensions_job.py",
+        bash_command=f"F1_SEED_YEARS={YEAR_TPL} python ingestion/load_schedules.py",
     )
 
-    build_gold_facts = BashOperator(
-        task_id="build_gold_facts",
-        bash_command=f"{SPARK_SUBMIT} {PROJECT_ROOT}/processing/gold_facts_job.py",
+    dbt_build = BashOperator(
+        task_id="dbt_build",
+        bash_command=f"{DBT_RUN} dbt seed && {DBT_RUN} dbt run",
     )
 
-    # All silver jobs depend on ingest completing
-    ingest_to_bronze >> [build_silver_laps, build_silver_results, build_silver_pit_stops, build_silver_weather]
+    dbt_test = BashOperator(
+        task_id="dbt_test",
+        bash_command=f"{DBT_RUN} dbt test",
+    )
 
-    # Gold legacy (driver_pace, tire_performance, sector_analysis) needs silver laps
-    build_silver_laps >> build_gold_legacy
-
-    # Dimensions need silver results; facts need dimensions + all silver
-    build_silver_results >> build_gold_dimensions
-    [build_silver_laps, build_silver_results, build_silver_pit_stops, build_silver_weather, build_gold_dimensions] >> build_gold_facts
+    [ingest_to_bronze, refresh_seeds] >> dbt_build >> dbt_test

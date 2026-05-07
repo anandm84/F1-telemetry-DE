@@ -14,10 +14,12 @@ KAFKA_TOPIC_LAPS = os.getenv("KAFKA_TOPIC", "f1_lap_times")
 KAFKA_TOPIC_RACE_RESULTS = os.getenv("KAFKA_TOPIC_RACE_RESULTS", "f1_race_results")
 KAFKA_TOPIC_WEATHER = os.getenv("KAFKA_TOPIC_WEATHER", "f1_weather")
 RACE_YEAR = int(os.getenv("RACE_YEAR", "2024"))
-RACE_ROUND = int(os.getenv("RACE_ROUND", "1"))
+RACE_ROUND = os.getenv("RACE_ROUND", "1")
 RACE_SESSION = os.getenv("RACE_SESSION", "R")
 SPEED_FACTOR = float(os.getenv("SPEED_FACTOR", "0.02"))
 DATA_TYPES = {t.strip() for t in os.getenv("DATA_TYPES", "laps,race_results,weather").split(",")}
+
+ALL_SESSION_CODES = ["FP1", "FP2", "FP3", "SQ", "S", "Q", "R"]
 
 producer = KafkaProducer(
     bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
@@ -30,7 +32,7 @@ def _to_maybe_float(value):
         return None
     try:
         f = float(value)
-        return None if f != f else f  # NaN → None
+        return None if f != f else f  # NaN -> None
     except (TypeError, ValueError):
         return None
 
@@ -51,7 +53,7 @@ def _format_timedelta_hhmmssmmmm(value):
         return None
 
     total_seconds = float(value.total_seconds())
-    if total_seconds != total_seconds:  # NaN check
+    if total_seconds != total_seconds:
         return None
     total_seconds_int = int(total_seconds)
 
@@ -78,13 +80,7 @@ def _make_record_id(*parts):
     return hashlib.sha1(key.encode("utf-8")).hexdigest()
 
 
-def _load_session():
-    session = fastf1.get_session(RACE_YEAR, RACE_ROUND, RACE_SESSION)
-    session.load(laps=True, weather=True, messages=False, telemetry=False)
-    return session
-
-
-def _emit_laps(session):
+def _emit_laps(session, year, round_num, session_code):
     laps = session.laps[
         [
             "Driver",
@@ -100,11 +96,16 @@ def _emit_laps(session):
     ].copy()
 
     laps = laps.dropna(subset=["Driver", "LapNumber", "LapTime"])
+    if laps.empty:
+        print(f"[laps] no rows for {year} R{round_num} {session_code}")
+        return
+
     laps["LapSeconds"] = laps["LapTime"].dt.total_seconds()
     laps["RaceTime"] = laps.groupby("Driver")["LapSeconds"].cumsum()
     laps = laps.sort_values("RaceTime")
 
     prev_time = 0
+    count = 0
     for lap in laps.to_dict(orient="records"):
         driver = lap.get("Driver")
         lap_number = _to_maybe_float(lap.get("LapNumber"))
@@ -122,28 +123,29 @@ def _emit_laps(session):
             "PitInTime_ms": _timedelta_to_ms(lap.get("PitInTime")),
             "PitOutTime_ms": _timedelta_to_ms(lap.get("PitOutTime")),
             "event_ts": datetime.now(timezone.utc).isoformat(),
-            "race_year": RACE_YEAR,
-            "race_round": RACE_ROUND,
-            "session": RACE_SESSION,
-            "record_id": _make_record_id(RACE_YEAR, RACE_ROUND, RACE_SESSION, driver, lap_number, lap_time),
+            "race_year": year,
+            "race_round": round_num,
+            "session": session_code,
+            "record_id": _make_record_id(year, round_num, session_code, driver, lap_number, lap_time),
         }
 
-        delay = lap["RaceTime"] - prev_time
-        time.sleep(delay * SPEED_FACTOR)
+        if SPEED_FACTOR > 0:
+            time.sleep(max(0.0, (lap["RaceTime"] - prev_time)) * SPEED_FACTOR)
         producer.send(KAFKA_TOPIC_LAPS, record)
-        print(f"[laps] Sent: {driver} lap {int(lap_number) if lap_number else '?'} {lap_time}")
+        count += 1
         prev_time = lap["RaceTime"]
 
     producer.flush()
-    print(f"[laps] Done — emitted laps for {RACE_YEAR} R{RACE_ROUND} {RACE_SESSION}")
+    print(f"[laps] {year} R{round_num} {session_code}: emitted {count} laps")
 
 
-def _emit_race_results(session):
+def _emit_race_results(session, year, round_num, session_code):
     results = session.results
     if results is None or results.empty:
-        print("[race_results] No results data available for this session.")
+        print(f"[race_results] no data for {year} R{round_num} {session_code}")
         return
 
+    count = 0
     for row in results.itertuples(index=False):
         driver_id = getattr(row, "Abbreviation", None)
         if not driver_id:
@@ -168,10 +170,10 @@ def _emit_race_results(session):
             points = None
 
         record = {
-            "record_id": _make_record_id(RACE_YEAR, RACE_ROUND, RACE_SESSION, driver_id),
-            "race_year": RACE_YEAR,
-            "race_round": RACE_ROUND,
-            "session": RACE_SESSION,
+            "record_id": _make_record_id(year, round_num, session_code, driver_id),
+            "race_year": year,
+            "race_round": round_num,
+            "session": session_code,
             "driver_id": str(driver_id).upper().strip(),
             "full_name": str(getattr(row, "FullName", "") or ""),
             "team": str(getattr(row, "TeamName", "") or ""),
@@ -184,18 +186,19 @@ def _emit_race_results(session):
         }
 
         producer.send(KAFKA_TOPIC_RACE_RESULTS, record)
-        print(f"[race_results] Sent: {driver_id} P{position}")
+        count += 1
 
     producer.flush()
-    print(f"[race_results] Done — emitted {len(results)} results for {RACE_YEAR} R{RACE_ROUND} {RACE_SESSION}")
+    print(f"[race_results] {year} R{round_num} {session_code}: emitted {count} rows")
 
 
-def _emit_weather(session):
+def _emit_weather(session, year, round_num, session_code):
     weather = session.weather_data
     if weather is None or weather.empty:
-        print("[weather] No weather data available for this session.")
+        print(f"[weather] no data for {year} R{round_num} {session_code}")
         return
 
+    count = 0
     for idx, row in enumerate(weather.itertuples(index=False)):
         rainfall = getattr(row, "Rainfall", None)
         try:
@@ -204,10 +207,10 @@ def _emit_weather(session):
             is_raining = None
 
         record = {
-            "record_id": _make_record_id(RACE_YEAR, RACE_ROUND, RACE_SESSION, idx),
-            "race_year": RACE_YEAR,
-            "race_round": RACE_ROUND,
-            "session": RACE_SESSION,
+            "record_id": _make_record_id(year, round_num, session_code, idx),
+            "race_year": year,
+            "race_round": round_num,
+            "session": session_code,
             "snapshot_index": idx,
             "time_offset_ms": _timedelta_to_ms(getattr(row, "Time", None)),
             "air_temp_c": _to_maybe_float(getattr(row, "AirTemp", None)),
@@ -218,25 +221,62 @@ def _emit_weather(session):
             "is_raining": is_raining,
             "event_ts": datetime.now(timezone.utc).isoformat(),
         }
-
         producer.send(KAFKA_TOPIC_WEATHER, record)
+        count += 1
 
     producer.flush()
-    print(f"[weather] Done — emitted {len(weather)} snapshots for {RACE_YEAR} R{RACE_ROUND} {RACE_SESSION}")
+    print(f"[weather] {year} R{round_num} {session_code}: emitted {count} snapshots")
+
+
+def _process_session(year, round_num, session_code):
+    print(f"\n=== {year} R{round_num} {session_code} ===")
+    try:
+        session = fastf1.get_session(year, round_num, session_code)
+        session.load(laps=True, weather=True, messages=False, telemetry=False)
+    except Exception as e:
+        print(f"[skip] {year} R{round_num} {session_code}: {e}")
+        return
+
+    if "laps" in DATA_TYPES:
+        try:
+            _emit_laps(session, year, round_num, session_code)
+        except Exception as e:
+            print(f"[laps][error] {year} R{round_num} {session_code}: {e}")
+
+    if "race_results" in DATA_TYPES:
+        try:
+            _emit_race_results(session, year, round_num, session_code)
+        except Exception as e:
+            print(f"[race_results][error] {year} R{round_num} {session_code}: {e}")
+
+    if "weather" in DATA_TYPES:
+        try:
+            _emit_weather(session, year, round_num, session_code)
+        except Exception as e:
+            print(f"[weather][error] {year} R{round_num} {session_code}: {e}")
+
+
+def _resolve_rounds(year):
+    if RACE_ROUND.strip().lower() == "all":
+        schedule = fastf1.get_event_schedule(year, include_testing=False)
+        return sorted(int(r) for r in schedule["RoundNumber"].dropna().astype(int).tolist())
+    return [int(r.strip()) for r in RACE_ROUND.split(",") if r.strip()]
+
+
+def _resolve_sessions():
+    if RACE_SESSION.strip().lower() == "all":
+        return list(ALL_SESSION_CODES)
+    return [s.strip() for s in RACE_SESSION.split(",") if s.strip()]
 
 
 def stream_data():
-    print(f"Loading session: {RACE_YEAR} R{RACE_ROUND} {RACE_SESSION} | data_types={DATA_TYPES}")
-    session = _load_session()
+    rounds = _resolve_rounds(RACE_YEAR)
+    sessions = _resolve_sessions()
+    print(f"Producer plan: year={RACE_YEAR} rounds={rounds} sessions={sessions} data_types={sorted(DATA_TYPES)}")
 
-    if "laps" in DATA_TYPES:
-        _emit_laps(session)
-
-    if "race_results" in DATA_TYPES:
-        _emit_race_results(session)
-
-    if "weather" in DATA_TYPES:
-        _emit_weather(session)
+    for round_num in rounds:
+        for session_code in sessions:
+            _process_session(RACE_YEAR, round_num, session_code)
 
 
 if __name__ == "__main__":

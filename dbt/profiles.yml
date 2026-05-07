@@ -1,0 +1,10 @@
+f1_telemetry:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('F1_DUCKDB_PATH', '../data/warehouse.duckdb') }}"
+      threads: 4
+      extensions:
+        - httpfs
+        - parquet

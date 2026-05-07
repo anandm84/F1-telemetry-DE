@@ -1,0 +1,298 @@
+{
+  "@context": {
+    "prov": "http://www.w3.org/ns/prov#",
+    "dcterms": "http://purl.org/dc/terms/",
+    "schema": "http://schema.org/",
+    "f1": "urn:f1-telemetry-curation:vocab/"
+  },
+  "@graph": [
+    {
+      "@id": "f1:agent/anand",
+      "@type": "prov:Person",
+      "schema:name": "Anand Marepalli",
+      "schema:affiliation": "School of Information Sciences, University of Illinois Urbana-Champaign",
+      "schema:email": "anandm5@illinois.edu"
+    },
+    {
+      "@id": "f1:agent/fastf1",
+      "@type": "prov:SoftwareAgent",
+      "schema:name": "FastF1 (Python library)",
+      "schema:url": "https://docs.fastf1.dev/"
+    },
+    {
+      "@id": "f1:agent/jolpica",
+      "@type": "prov:SoftwareAgent",
+      "schema:name": "Jolpica-F1 API",
+      "schema:url": "https://github.com/jolpica/jolpica-f1"
+    },
+    {
+      "@id": "f1:agent/dbt",
+      "@type": "prov:SoftwareAgent",
+      "schema:name": "dbt (data build tool) with dbt-duckdb adapter",
+      "schema:url": "https://docs.getdbt.com/"
+    },
+    {
+      "@id": "f1:agent/duckdb",
+      "@type": "prov:SoftwareAgent",
+      "schema:name": "DuckDB",
+      "schema:url": "https://duckdb.org/"
+    },
+    {
+      "@id": "f1:agent/fom",
+      "@type": "prov:Organization",
+      "schema:name": "Formula One World Championship Ltd."
+    },
+
+    {
+      "@id": "f1:entity/upstream/timing-feed",
+      "@type": "prov:Entity",
+      "dcterms:title": "F1 live timing service",
+      "dcterms:rights": "Property of Formula One World Championship Ltd.; not redistributed by this project."
+    },
+    {
+      "@id": "f1:entity/upstream/jolpica-schedule",
+      "@type": "prov:Entity",
+      "dcterms:title": "Jolpica-F1 season schedule"
+    },
+
+    {
+      "@id": "f1:activity/extract-bronze",
+      "@type": "prov:Activity",
+      "prov:wasAssociatedWith": [
+        {"@id": "f1:agent/anand"},
+        {"@id": "f1:agent/fastf1"}
+      ],
+      "prov:used": [
+        {"@id": "f1:entity/upstream/timing-feed"},
+        {"@id": "f1:agent/fastf1"}
+      ],
+      "schema:description": "Extract per-session laps, race results, and weather via FastF1; encode as NDJSON.",
+      "f1:scriptPath": [
+        "ingestion/producer.py",
+        "ingestion/backfill.py",
+        "ingestion/bronze_consumer.py",
+        "ingestion/results_consumer.py",
+        "ingestion/weather_consumer.py"
+      ]
+    },
+    {
+      "@id": "f1:entity/bronze/laps",
+      "@type": "prov:Entity",
+      "dcterms:title": "Bronze laps NDJSON",
+      "dcterms:format": "application/x-ndjson",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/extract-bronze"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/upstream/timing-feed"}
+    },
+    {
+      "@id": "f1:entity/bronze/race_results",
+      "@type": "prov:Entity",
+      "dcterms:title": "Bronze race-results NDJSON",
+      "dcterms:format": "application/x-ndjson",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/extract-bronze"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/upstream/timing-feed"}
+    },
+    {
+      "@id": "f1:entity/bronze/weather",
+      "@type": "prov:Entity",
+      "dcterms:title": "Bronze weather NDJSON",
+      "dcterms:format": "application/x-ndjson",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/extract-bronze"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/upstream/timing-feed"}
+    },
+
+    {
+      "@id": "f1:activity/refresh-seeds",
+      "@type": "prov:Activity",
+      "prov:wasAssociatedWith": [
+        {"@id": "f1:agent/anand"},
+        {"@id": "f1:agent/fastf1"},
+        {"@id": "f1:agent/jolpica"}
+      ],
+      "prov:used": {"@id": "f1:entity/upstream/jolpica-schedule"},
+      "schema:description": "Call fastf1.get_event_schedule for each season and write version-controlled CSV seeds.",
+      "f1:scriptPath": "ingestion/load_schedules.py"
+    },
+    {
+      "@id": "f1:entity/seeds/circuits",
+      "@type": "prov:Entity",
+      "dcterms:title": "dbt seed: circuits.csv",
+      "dcterms:format": "text/csv",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/refresh-seeds"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/upstream/jolpica-schedule"}
+    },
+    {
+      "@id": "f1:entity/seeds/races",
+      "@type": "prov:Entity",
+      "dcterms:title": "dbt seed: races.csv",
+      "dcterms:format": "text/csv",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/refresh-seeds"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/upstream/jolpica-schedule"}
+    },
+
+    {
+      "@id": "f1:activity/dbt-build",
+      "@type": "prov:Activity",
+      "prov:wasAssociatedWith": [
+        {"@id": "f1:agent/anand"},
+        {"@id": "f1:agent/dbt"},
+        {"@id": "f1:agent/duckdb"}
+      ],
+      "prov:used": [
+        {"@id": "f1:entity/bronze/laps"},
+        {"@id": "f1:entity/bronze/race_results"},
+        {"@id": "f1:entity/bronze/weather"},
+        {"@id": "f1:entity/seeds/circuits"},
+        {"@id": "f1:entity/seeds/races"}
+      ],
+      "schema:description": "dbt builds silver staging models, intermediate model, and gold marts in a single DuckDB warehouse; runs 38 not_null/unique/relationships tests.",
+      "f1:projectPath": "dbt/",
+      "f1:manifest": "dbt/target/manifest.json"
+    },
+
+    {
+      "@id": "f1:entity/silver/stg_laps",
+      "@type": "prov:Entity",
+      "dcterms:title": "Silver stg_laps (DuckDB table main_silver.stg_laps)",
+      "dcterms:format": "DuckDB table",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/dbt-build"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/bronze/laps"},
+      "f1:dbtModel": "dbt/models/staging/stg_laps.sql"
+    },
+    {
+      "@id": "f1:entity/silver/stg_pit_stops",
+      "@type": "prov:Entity",
+      "dcterms:title": "Silver stg_pit_stops (DuckDB table main_silver.stg_pit_stops)",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/dbt-build"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/bronze/laps"},
+      "f1:dbtModel": "dbt/models/staging/stg_pit_stops.sql"
+    },
+    {
+      "@id": "f1:entity/silver/stg_race_results",
+      "@type": "prov:Entity",
+      "dcterms:title": "Silver stg_race_results (DuckDB table main_silver.stg_race_results)",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/dbt-build"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/bronze/race_results"},
+      "f1:dbtModel": "dbt/models/staging/stg_race_results.sql"
+    },
+    {
+      "@id": "f1:entity/silver/stg_weather",
+      "@type": "prov:Entity",
+      "dcterms:title": "Silver stg_weather (DuckDB table main_silver.stg_weather)",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/dbt-build"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/bronze/weather"},
+      "f1:dbtModel": "dbt/models/staging/stg_weather.sql"
+    },
+    {
+      "@id": "f1:entity/intermediate/int_drivers_latest",
+      "@type": "prov:Entity",
+      "dcterms:title": "Intermediate int_drivers_latest (DuckDB table main_intermediate.int_drivers_latest)",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/dbt-build"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/silver/stg_race_results"},
+      "f1:dbtModel": "dbt/models/intermediate/int_drivers_latest.sql"
+    },
+
+    {
+      "@id": "f1:entity/gold/driver_pace",
+      "@type": "prov:Entity",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/dbt-build"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/silver/stg_laps"},
+      "f1:dbtModel": "dbt/models/marts/driver_pace.sql"
+    },
+    {
+      "@id": "f1:entity/gold/tire_performance",
+      "@type": "prov:Entity",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/dbt-build"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/silver/stg_laps"},
+      "f1:dbtModel": "dbt/models/marts/tire_performance.sql"
+    },
+    {
+      "@id": "f1:entity/gold/sector_analysis",
+      "@type": "prov:Entity",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/dbt-build"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/silver/stg_laps"},
+      "f1:dbtModel": "dbt/models/marts/sector_analysis.sql"
+    },
+    {
+      "@id": "f1:entity/gold/dim_drivers",
+      "@type": "prov:Entity",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/dbt-build"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/intermediate/int_drivers_latest"},
+      "f1:dbtModel": "dbt/models/marts/dim_drivers.sql"
+    },
+    {
+      "@id": "f1:entity/gold/dim_circuits",
+      "@type": "prov:Entity",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/dbt-build"},
+      "prov:wasDerivedFrom": [
+        {"@id": "f1:entity/seeds/circuits"},
+        {"@id": "f1:entity/silver/stg_race_results"}
+      ],
+      "f1:dbtModel": "dbt/models/marts/dim_circuits.sql"
+    },
+    {
+      "@id": "f1:entity/gold/dim_races",
+      "@type": "prov:Entity",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/dbt-build"},
+      "prov:wasDerivedFrom": [
+        {"@id": "f1:entity/seeds/races"},
+        {"@id": "f1:entity/silver/stg_race_results"}
+      ],
+      "f1:dbtModel": "dbt/models/marts/dim_races.sql"
+    },
+    {
+      "@id": "f1:entity/gold/fact_race_results",
+      "@type": "prov:Entity",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/dbt-build"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/silver/stg_race_results"},
+      "f1:dbtModel": "dbt/models/marts/fact_race_results.sql"
+    },
+    {
+      "@id": "f1:entity/gold/fact_pit_stops",
+      "@type": "prov:Entity",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/dbt-build"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/silver/stg_pit_stops"},
+      "f1:dbtModel": "dbt/models/marts/fact_pit_stops.sql"
+    },
+    {
+      "@id": "f1:entity/gold/fact_weather_snapshots",
+      "@type": "prov:Entity",
+      "prov:wasGeneratedBy": {"@id": "f1:activity/dbt-build"},
+      "prov:wasDerivedFrom": {"@id": "f1:entity/silver/stg_weather"},
+      "f1:dbtModel": "dbt/models/marts/fact_weather_snapshots.sql"
+    },
+
+    {
+      "@id": "f1:activity/dbt-test",
+      "@type": "prov:Activity",
+      "prov:wasAssociatedWith": [
+        {"@id": "f1:agent/anand"},
+        {"@id": "f1:agent/dbt"}
+      ],
+      "prov:used": [
+        {"@id": "f1:entity/silver/stg_laps"},
+        {"@id": "f1:entity/silver/stg_race_results"},
+        {"@id": "f1:entity/silver/stg_pit_stops"},
+        {"@id": "f1:entity/silver/stg_weather"},
+        {"@id": "f1:entity/gold/dim_drivers"},
+        {"@id": "f1:entity/gold/dim_circuits"},
+        {"@id": "f1:entity/gold/dim_races"},
+        {"@id": "f1:entity/gold/fact_race_results"}
+      ],
+      "schema:description": "38 dbt tests asserting not_null on key columns, unique on PKs, and relationships (fact_race_results.driver_id → dim_drivers.driver_id).",
+      "f1:projectPath": "dbt/"
+    },
+
+    {
+      "@id": "f1:entity/deposit/zenodo-bundle",
+      "@type": "prov:Entity",
+      "dcterms:title": "Zenodo deposit bundle (curated dataset)",
+      "prov:wasDerivedFrom": [
+        {"@id": "f1:entity/silver/stg_laps"},
+        {"@id": "f1:entity/gold/driver_pace"},
+        {"@id": "f1:entity/gold/dim_drivers"},
+        {"@id": "f1:entity/gold/fact_race_results"}
+      ],
+      "dcterms:license": "https://creativecommons.org/licenses/by/4.0/"
+    }
+  ]
+}

@@ -50,16 +50,21 @@ def _safe_token(value, fallback):
     return token or fallback
 
 
-def _session_file_path(session):
-    session_token = _safe_token(session, "UNKNOWN_SESSION")
+def _session_key(year, round_num, session):
+    return f"{_safe_token(year, 'UNKNOWN_YEAR')}_{_safe_token(round_num, 'UNKNOWN_ROUND')}_{_safe_token(session, 'UNKNOWN_SESSION')}"
+
+
+def _session_file_path(session_key):
     run_suffix = f".run-{_safe_token(BRONZE_RUN_ID, 'default')}" if BRONZE_RUN_ID else ""
 
+    session_dir = os.path.join(BRONZE_DIR, session_key)
+    os.makedirs(session_dir, exist_ok=True)
+
     file_name = (
-        f"{BRONZE_FILE_PREFIX}."
-        f"session-{session_token}"
+        f"{BRONZE_FILE_PREFIX}"
         f"{run_suffix}.ndjson"
     )
-    return os.path.join(BRONZE_DIR, file_name)
+    return os.path.join(session_dir, file_name)
 
 
 def _flush_buffers():
@@ -67,11 +72,11 @@ def _flush_buffers():
 
     total_records = 0
 
-    for session, records in list(buffers.items()):
+    for session_key, records in list(buffers.items()):
         if not records:
             continue
 
-        path = _session_file_path(session)
+        path = _session_file_path(session_key)
 
         with open(path, "a", encoding="utf-8") as f:
             for record in records:
@@ -79,7 +84,7 @@ def _flush_buffers():
 
         print(f"Appended {len(records)} records to bronze: {path}")
         total_records += len(records)
-        buffers[session].clear()
+        buffers[session_key].clear()
 
     if total_records > 0:
         consumer.commit()
@@ -108,8 +113,11 @@ try:
                     "_bronze_written_at": datetime.now(timezone.utc).isoformat(),
                 }
 
-                # Weather is keyed by session only
-                session_key = bronze_record.get("session", "UNKNOWN_SESSION")
+                session_key = _session_key(
+                    bronze_record.get("race_year"),
+                    bronze_record.get("race_round"),
+                    bronze_record.get("session"),
+                )
                 buffers[session_key].append(bronze_record)
 
         now = time.monotonic()

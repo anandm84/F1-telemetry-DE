@@ -1,0 +1,61 @@
+cff-version: 1.2.0
+title: "Curated Formula 1 Telemetry and Race Session Dataset (2024 full season)"
+message: "If you use this dataset or the curation code, please cite both this work and the underlying F1 timing data source."
+type: dataset
+authors:
+  - family-names: Marepalli
+    given-names: Anand
+    affiliation: "School of Information Sciences, University of Illinois Urbana-Champaign"
+    email: anandm5@illinois.edu
+abstract: >
+  An analysis-ready, lifecycle-curated dataset derived from public Formula 1
+  session data accessed through the FastF1 Python library and Jolpica-F1.
+  Three layers (bronze NDJSON, silver and gold dbt-managed tables in a
+  single-file DuckDB warehouse, exported to Parquet+CSV for the deposit)
+  are produced via a Kafka + dbt + Airflow pipeline. Covers the full 2024
+  F1 season (24 rounds, 120 sessions). Includes lap timing, sector splits,
+  tire compounds, pit stop indicators, race results, driver and team
+  metadata, and weather snapshots. Documentation includes a Dublin Core
+  metadata record, data dictionary, cleaning log, provenance log
+  (PROV-O JSON-LD), and a Zenodo-ready preservation bundle. Curated as
+  the IS547 (Spring 2026) self-directed course project.
+keywords:
+  - "Formula 1"
+  - "motorsport"
+  - "telemetry"
+  - "data curation"
+  - "medallion architecture"
+  - "FAIR"
+  - "reproducible research"
+  - "dbt"
+  - "DuckDB"
+  - "Apache Kafka"
+license: "CC-BY-4.0"
+license-url: "https://creativecommons.org/licenses/by/4.0/"
+date-released: "2026-05-05"
+url: "https://github.com/anandmarepalli/f1-telemetry"
+references:
+  - type: software
+    title: "FastF1"
+    authors:
+      - family-names: Oehrly
+        given-names: Theodor
+    url: "https://github.com/theOehrly/Fast-F1"
+    notes: "Reverse-engineered Python client for F1 timing services. MIT-licensed."
+  - type: data
+    title: "Jolpica-F1 API"
+    url: "https://github.com/jolpica/jolpica-f1"
+    notes: "Successor to the deprecated Ergast API; source of schedule and reference data."
+  - type: misc
+    title: "Formula 1 Brand Guidelines — Timing Data"
+    url: "https://www.formula1.com/en/information/guidelines.4EOKE9RRqevL4niTK9kWyt"
+    notes: "Underlying timing data is the property of Formula One World Championship Ltd. and is NOT redistributed in raw form by this project."
+preferred-citation:
+  type: dataset
+  title: "Curated Formula 1 Telemetry and Race Session Dataset (2024 full season)"
+  authors:
+    - family-names: Marepalli
+      given-names: Anand
+  year: 2026
+  publisher: "Zenodo"
+  notes: "Replace with Zenodo DOI after deposit (e.g., 10.5281/zenodo.XXXXXXX)."

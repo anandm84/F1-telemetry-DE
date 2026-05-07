@@ -31,31 +31,6 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
-  spark-master:
-    image: apache/spark:3.5.0
-    container_name: spark-master
-    command: >
-      /opt/spark/bin/spark-class
-      org.apache.spark.deploy.master.Master
-      --host spark-master
-    ports:
-      - "8080:8080"
-      - "7077:7077"
-    volumes:
-      - ./:/opt/project
-
-  spark-worker:
-    image: apache/spark:3.5.0
-    container_name: spark-worker
-    depends_on:
-      - spark-master
-    command: >
-      /opt/spark/bin/spark-class
-      org.apache.spark.deploy.worker.Worker
-      spark://spark-master:7077
-    volumes:
-      - ./:/opt/project
-
   airflow:
     build:
       context: .
@@ -63,8 +38,6 @@ services:
     container_name: airflow
     depends_on:
       - kafka
-      - spark-master
-      - spark-worker
     environment:
       AIRFLOW_HOME: /opt/airflow
       AIRFLOW__CORE__EXECUTOR: SequentialExecutor

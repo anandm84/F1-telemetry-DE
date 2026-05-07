@@ -2,5 +2,6 @@ requests
 kafka-python
 pandas
 fastf1
-pyspark
+duckdb
+dbt-duckdb
 apache-airflow

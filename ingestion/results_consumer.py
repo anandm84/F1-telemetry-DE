@@ -49,18 +49,15 @@ def _safe_token(value, fallback):
     return token or fallback
 
 
-def _driver_session_file_path(session, driver_id):
-    session_token = _safe_token(session, "UNKNOWN_SESSION")
-    driver_token = _safe_token(driver_id, "UNKNOWN_DRIVER")
-    run_suffix = f".run-{_safe_token(BRONZE_RUN_ID, 'default')}" if BRONZE_RUN_ID else ""
+def _session_key(year, round_num, session):
+    return f"{_safe_token(year, 'UNKNOWN_YEAR')}_{_safe_token(round_num, 'UNKNOWN_ROUND')}_{_safe_token(session, 'UNKNOWN_SESSION')}"
 
-    file_name = (
-        f"{BRONZE_FILE_PREFIX}."
-        f"session-{session_token}."
-        f"driver-{driver_token}"
-        f"{run_suffix}.ndjson"
-    )
-    return os.path.join(BRONZE_DIR, file_name)
+
+def _session_file_path(session_key):
+    run_suffix = f".run-{_safe_token(BRONZE_RUN_ID, 'default')}" if BRONZE_RUN_ID else ""
+    session_dir = os.path.join(BRONZE_DIR, session_key)
+    os.makedirs(session_dir, exist_ok=True)
+    return os.path.join(session_dir, f"{BRONZE_FILE_PREFIX}{run_suffix}")
 
 
 def _flush_buffers():
@@ -68,11 +65,11 @@ def _flush_buffers():
 
     total_records = 0
 
-    for (session, driver_id), records in list(buffers.items()):
+    for session_key, records in list(buffers.items()):
         if not records:
             continue
 
-        path = _driver_session_file_path(session, driver_id)
+        path = _session_file_path(session_key)
 
         with open(path, "a", encoding="utf-8") as f:
             for record in records:
@@ -80,7 +77,7 @@ def _flush_buffers():
 
         print(f"Appended {len(records)} records to bronze: {path}")
         total_records += len(records)
-        buffers[(session, driver_id)].clear()
+        buffers[session_key].clear()
 
     if total_records > 0:
         consumer.commit()
@@ -109,10 +106,12 @@ try:
                     "_bronze_written_at": datetime.now(timezone.utc).isoformat(),
                 }
 
-                # Race results are keyed by (session, driver_id)
-                session_key = bronze_record.get("session", "UNKNOWN_SESSION")
-                driver_key = bronze_record.get("driver_id", "UNKNOWN_DRIVER")
-                buffers[(session_key, driver_key)].append(bronze_record)
+                session_key = _session_key(
+                    bronze_record.get("race_year"),
+                    bronze_record.get("race_round"),
+                    bronze_record.get("session"),
+                )
+                buffers[session_key].append(bronze_record)
 
         now = time.monotonic()
         if received_count > 0:

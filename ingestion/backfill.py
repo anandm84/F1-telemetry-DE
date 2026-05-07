@@ -44,6 +44,10 @@ def _safe_token(value, fallback="UNKNOWN"):
     return token or fallback
 
 
+def _session_key(year, round_num, session_code):
+    return f"{_safe_token(year, 'UNKNOWN_YEAR')}_{_safe_token(round_num, 'UNKNOWN_ROUND')}_{_safe_token(session_code, 'UNKNOWN_SESSION')}"
+
+
 def _to_maybe_float(value):
     if value is None:
         return None
@@ -68,6 +72,8 @@ def _format_timedelta_hhmmssmmmm(value):
     if value is None or not hasattr(value, "total_seconds"):
         return None
     total_seconds = float(value.total_seconds())
+    if total_seconds != total_seconds:
+        return None
     total_seconds_int = int(total_seconds)
     hours = total_seconds_int // 3600
     minutes = (total_seconds_int % 3600) // 60
@@ -146,7 +152,7 @@ _BACKFILL_LINEAGE = {
 
 
 def _write_bronze_laps(session_obj, year, round_num, session_code, bronze_base):
-    laps_dir = os.path.join(bronze_base, "laps")
+    laps_dir = os.path.join(bronze_base, "laps", _session_key(year, round_num, session_code))
     os.makedirs(laps_dir, exist_ok=True)
 
     try:
@@ -189,8 +195,7 @@ def _write_bronze_laps(session_obj, year, round_num, session_code, bronze_base):
             }
 
             driver_token = _safe_token(driver)
-            session_token = _safe_token(session_code)
-            file_name = f"laps.ndjson.session-{session_token}.driver-{driver_token}.ndjson"
+            file_name = f"laps.ndjson.driver-{driver_token}.ndjson"
             file_path = os.path.join(laps_dir, file_name)
 
             if file_path not in file_handles:
@@ -206,7 +211,7 @@ def _write_bronze_laps(session_obj, year, round_num, session_code, bronze_base):
 
 
 def _write_bronze_results(session_obj, year, round_num, session_code, bronze_base):
-    results_dir = os.path.join(bronze_base, "race_results")
+    results_dir = os.path.join(bronze_base, "race_results", _session_key(year, round_num, session_code))
     os.makedirs(results_dir, exist_ok=True)
 
     results = session_obj.results
@@ -215,9 +220,9 @@ def _write_bronze_results(session_obj, year, round_num, session_code, bronze_bas
         return 0
 
     written = 0
-    file_handles = {}
+    file_path = os.path.join(results_dir, "results.ndjson")
 
-    try:
+    with open(file_path, "a", encoding="utf-8") as f:
         for row in results.itertuples(index=False):
             driver_id = getattr(row, "Abbreviation", None)
             if not driver_id:
@@ -259,25 +264,15 @@ def _write_bronze_results(session_obj, year, round_num, session_code, bronze_bas
                 **_BACKFILL_LINEAGE,
             }
 
-            driver_token = _safe_token(driver_id)
-            session_token = _safe_token(session_code)
-            file_name = f"results.ndjson.session-{session_token}.driver-{driver_token}.ndjson"
-            file_path = os.path.join(results_dir, file_name)
-
-            if file_path not in file_handles:
-                file_handles[file_path] = open(file_path, "a", encoding="utf-8")
-            file_handles[file_path].write(json.dumps(record) + "\n")
+            f.write(json.dumps(record) + "\n")
             written += 1
-    finally:
-        for fh in file_handles.values():
-            fh.close()
 
     print(f"[backfill][race_results] Wrote {written} records for {year} R{round_num} {session_code}")
     return written
 
 
 def _write_bronze_weather(session_obj, year, round_num, session_code, bronze_base):
-    weather_dir = os.path.join(bronze_base, "weather")
+    weather_dir = os.path.join(bronze_base, "weather", _session_key(year, round_num, session_code))
     os.makedirs(weather_dir, exist_ok=True)
 
     weather = session_obj.weather_data
@@ -285,8 +280,7 @@ def _write_bronze_weather(session_obj, year, round_num, session_code, bronze_bas
         print(f"[backfill][weather] No weather data for {year} R{round_num} {session_code}")
         return 0
 
-    session_token = _safe_token(session_code)
-    file_name = f"weather.ndjson.session-{session_token}.ndjson"
+    file_name = "weather.ndjson"
     file_path = os.path.join(weather_dir, file_name)
     written = 0
 

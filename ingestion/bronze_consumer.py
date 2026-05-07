@@ -51,18 +51,23 @@ def _safe_token(value, fallback):
     return token or fallback
 
 
-def _driver_session_file_path(session, driver):
-    session_token = _safe_token(session, "UNKNOWN_SESSION")
+def _session_key(year, round_num, session):
+    return f"{_safe_token(year, 'UNKNOWN_YEAR')}_{_safe_token(round_num, 'UNKNOWN_ROUND')}_{_safe_token(session, 'UNKNOWN_SESSION')}"
+
+
+def _driver_session_file_path(session_key, driver):
     driver_token = _safe_token(driver, "UNKNOWN_DRIVER")
     run_suffix = f".run-{_safe_token(BRONZE_RUN_ID, 'default')}" if BRONZE_RUN_ID else ""
 
+    session_dir = os.path.join(BRONZE_DIR, session_key)
+    os.makedirs(session_dir, exist_ok=True)
+
     file_name = (
         f"{BRONZE_FILE_PREFIX}."
-        f"session-{session_token}."
         f"driver-{driver_token}"
         f"{run_suffix}.ndjson"
     )
-    return os.path.join(BRONZE_DIR, file_name)
+    return os.path.join(session_dir, file_name)
 
 
 def _clear_existing_session_files():
@@ -74,13 +79,13 @@ def _clear_existing_session_files():
         return
 
     session_token = _safe_token(BRONZE_TARGET_SESSION, "UNKNOWN_SESSION")
-    file_prefix = f"{BRONZE_FILE_PREFIX}.session-{session_token}.driver-"
     deleted_count = 0
-
-    for name in os.listdir(BRONZE_DIR):
-        if name.startswith(file_prefix) and name.endswith(".ndjson"):
-            os.remove(os.path.join(BRONZE_DIR, name))
-            deleted_count += 1
+    for entry in os.listdir(BRONZE_DIR):
+        full = os.path.join(BRONZE_DIR, entry)
+        if os.path.isdir(full) and entry.endswith(f"_{session_token}"):
+            for name in os.listdir(full):
+                os.remove(os.path.join(full, name))
+                deleted_count += 1
 
     print(f"Cleared {deleted_count} existing bronze files for session={session_token}.")
 
@@ -90,20 +95,19 @@ def _flush_buffers():
 
     total_records = 0
 
-    for (session, driver), records in list(buffers.items()):
+    for (session_key, driver), records in list(buffers.items()):
         if not records:
             continue
 
-        # One append-only bronze file per driver+session.
-        driver_session_path = _driver_session_file_path(session, driver)
+        path = _driver_session_file_path(session_key, driver)
 
-        with open(driver_session_path, "a", encoding="utf-8") as f:
+        with open(path, "a", encoding="utf-8") as f:
             for record in records:
                 f.write(json.dumps(record) + "\n")
 
-        print(f"Appended {len(records)} records to bronze: {driver_session_path}")
+        print(f"Appended {len(records)} records to bronze: {path}")
         total_records += len(records)
-        buffers[(session, driver)].clear()
+        buffers[(session_key, driver)].clear()
 
     if total_records > 0:
         consumer.commit()
@@ -135,7 +139,11 @@ try:
                     "_bronze_written_at": datetime.now(timezone.utc).isoformat(),
                 }
 
-                session_key = bronze_record.get("session", "UNKNOWN_SESSION")
+                session_key = _session_key(
+                    bronze_record.get("race_year"),
+                    bronze_record.get("race_round"),
+                    bronze_record.get("session"),
+                )
                 driver_key = bronze_record.get("Driver", "UNKNOWN_DRIVER")
                 buffers[(session_key, driver_key)].append(bronze_record)
 

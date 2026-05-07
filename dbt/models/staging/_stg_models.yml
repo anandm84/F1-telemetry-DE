@@ -1,0 +1,52 @@
+version: 2
+
+models:
+  - name: stg_laps
+    description: "Lap telemetry, schema-cleaned and deduplicated by record_id"
+    columns:
+      - name: record_id
+        tests: [unique, not_null]
+      - name: driver_id
+        tests: [not_null]
+      - name: lap_number
+        tests: [not_null]
+      - name: lap_time_ms
+        tests: [not_null]
+      - name: race_year
+        tests: [not_null]
+      - name: race_round
+        tests: [not_null]
+
+  - name: stg_race_results
+    description: "Per-driver race results, schema-cleaned and deduplicated"
+    columns:
+      - name: record_id
+        tests: [unique, not_null]
+      - name: driver_id
+        tests: [not_null]
+      - name: race_year
+        tests: [not_null]
+      - name: race_round
+        tests: [not_null]
+
+  - name: stg_pit_stops
+    description: "Pit stop events derived from laps where PitInTime is set"
+    columns:
+      - name: record_id
+        tests: [unique, not_null]
+      - name: driver_id
+        tests: [not_null]
+      - name: lap_number
+        tests: [not_null]
+      - name: pit_in_ms
+        tests: [not_null]
+
+  - name: stg_weather
+    description: "Per-session weather snapshots, deduplicated by record_id"
+    columns:
+      - name: record_id
+        tests: [unique, not_null]
+      - name: race_year
+        tests: [not_null]
+      - name: race_round
+        tests: [not_null]

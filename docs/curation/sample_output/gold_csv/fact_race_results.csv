@@ -1,0 +1,101 @@
+record_id,race_year,race_round,session,race_key,driver_id,full_name,team,position,grid_position,points,status
+648e761a9f48aef9aa46d7a234938109a80536a7,2024,1,FP1,2024_1,LEC,Charles Leclerc,Ferrari,,,,""
+dd0f1adb68c29d8e74b08df7cd6b8c5c41d1c7e5,2024,1,Q,2024_1,TSU,Yuki Tsunoda,RB,11,,,""
+9189cef1d6c1c7ece33d7bb1beb9c75e856f8745,2024,1,Q,2024_1,SAR,Logan Sargeant,Williams,18,,,""
+16405fc3d1f148405512b836f4a7ce0189ac4156,2024,1,FP3,2024_1,GAS,Pierre Gasly,Alpine,,,,""
+af14c4d782294afe9395b63acc0a2d9ec3865a34,2024,1,FP3,2024_1,TSU,Yuki Tsunoda,RB,,,,""
+1e9f7840c460eb6fccd50c61a60be63baa4e3862,2024,1,R,2024_1,HUL,Nico Hulkenberg,Haas F1 Team,16,10,0.0,Lapped
+5fd67a051e68f7148b9f851b8d29355923cc4f5a,2024,1,R,2024_1,VER,Max Verstappen,Red Bull Racing,1,1,26.0,Finished
+a21c0347303ca43f04701fcd61b20d9396182eda,2024,1,R,2024_1,SAI,Carlos Sainz,Ferrari,3,4,15.0,Finished
+aea99960c97ede2435c36c9c95c0135b9c21873f,2024,1,R,2024_1,STR,Lance Stroll,Aston Martin,10,12,1.0,Finished
+04e9123db195efabf2c15331c9754cdc0ec926b8,2024,1,FP1,2024_1,SAR,Logan Sargeant,Williams,,,,""
+9a5e9e349b033edb886931b3a9a31e3c5c6ca63c,2024,1,FP1,2024_1,ZHO,Guanyu Zhou,Kick Sauber,,,,""
+8b512e517c7b2c1c7181a5c0166fd89f80680cbb,2024,1,FP1,2024_1,HAM,Lewis Hamilton,Mercedes,,,,""
+000c474fd0526f39736ce3f4a2988b39e49315c3,2024,1,FP1,2024_1,BOT,Valtteri Bottas,Kick Sauber,,,,""
+f2f6287ac63ebba93856fa88a0a443354b61a31d,2024,1,R,2024_1,SAR,Logan Sargeant,Williams,20,18,0.0,Lapped
+ef21b0c9184731e4efcc60bef1123736f2ef0a48,2024,1,R,2024_1,TSU,Yuki Tsunoda,RB,14,11,0.0,Lapped
+945a17825477e30cec85606a875c5e9c25fbc03e,2024,1,FP2,2024_1,LEC,Charles Leclerc,Ferrari,,,,""
+c50dc6541b5e071c8cb52be8c04f582de830dbae,2024,1,FP2,2024_1,ALB,Alexander Albon,Williams,,,,""
+ec60bf8bbf8c7f4801ba902dc23f42878daa86d7,2024,1,Q,2024_1,SAI,Carlos Sainz,Ferrari,4,,,""
+55ec859de84c9d118924360348af45bee121b10f,2024,1,FP3,2024_1,PER,Sergio Perez,Red Bull Racing,,,,""
+db9f0149690b0210f2913ea243226fcaa4f3a832,2024,1,FP3,2024_1,MAG,Kevin Magnussen,Haas F1 Team,,,,""
+03debaf3ae38af7a0560f31a53153b9f28ad75c1,2024,1,FP3,2024_1,BOT,Valtteri Bottas,Kick Sauber,,,,""
+5dc4c9dd05bf2e3e2c2588bda9023d3aa1fda467,2024,1,FP1,2024_1,STR,Lance Stroll,Aston Martin,,,,""
+158ba41c4883d7b25a0bf3e39af8b6cd0af3a60e,2024,1,FP3,2024_1,SAR,Logan Sargeant,Williams,,,,""
+4fb4bf471afbcb3c87411f7023fc19414cc490e9,2024,1,R,2024_1,ALB,Alexander Albon,Williams,15,13,0.0,Lapped
+84ffdcde7f30d86126150536e04b3b5d6c4b5a94,2024,1,R,2024_1,ZHO,Guanyu Zhou,Kick Sauber,11,17,0.0,Lapped
+77c95643cf24a64189e3331755f56dc93e694ccc,2024,1,FP3,2024_1,HUL,Nico Hulkenberg,Haas F1 Team,,,,""
+2a63c4c0d75f4ab64c538f982c7a1171d25da7cc,2024,1,FP3,2024_1,NOR,Lando Norris,McLaren,,,,""
+55aa8e09248d174e972e6dd5c992d7291090e49c,2024,1,R,2024_1,GAS,Pierre Gasly,Alpine,18,20,0.0,Lapped
+6404ffef711436cbbe684e45821270642f3c9340,2024,1,FP1,2024_1,HUL,Nico Hulkenberg,Haas F1 Team,,,,""
+6e7ef8aa8872585fd868a2929006947107560923,2024,1,FP2,2024_1,SAR,Logan Sargeant,Williams,,,,""
+c4b0ee627db72b78bcc44f9660b88483c01a2942,2024,1,FP2,2024_1,GAS,Pierre Gasly,Alpine,,,,""
+efed884a9282358388dafd35e9023ea51e26ab94,2024,1,R,2024_1,PER,Sergio Perez,Red Bull Racing,2,5,18.0,Finished
+6f21d1f75b7fd68d8727524b51aec28eb6d8d03c,2024,1,Q,2024_1,PIA,Oscar Piastri,McLaren,8,,,""
+cbeac02b468b7cbd3ec6fc947d2806ac06f89f61,2024,1,R,2024_1,NOR,Lando Norris,McLaren,6,7,8.0,Finished
+b70f8d8c4611efaf7017e844b42a2060e5b3b6c8,2024,1,R,2024_1,RIC,Daniel Ricciardo,RB,13,14,0.0,Lapped
+4a37ef4ef0fab60038841ed6031bd687aa3014e2,2024,1,R,2024_1,MAG,Kevin Magnussen,Haas F1 Team,12,15,0.0,Lapped
+d4129f5d64a8bf0845230a3cb48e0628158369c4,2024,1,FP1,2024_1,VER,Max Verstappen,Red Bull Racing,,,,""
+36b86e34df5004df1c6d95bff117f34a7c42a44d,2024,1,FP2,2024_1,HUL,Nico Hulkenberg,Haas F1 Team,,,,""
+c0eb5bb8130d90d33937c29973e1558bf7f4c60b,2024,1,FP2,2024_1,OCO,Esteban Ocon,Alpine,,,,""
+c33b1279151d333fed4eb821e63ca238f49b27b6,2024,1,FP2,2024_1,HAM,Lewis Hamilton,Mercedes,,,,""
+9692e2671cb256e4fd6975af17fbbb1485699524,2024,1,Q,2024_1,LEC,Charles Leclerc,Ferrari,2,,,""
+f55d55c2f6d9c6c9b658601d528ef4805f6f8739,2024,1,Q,2024_1,HUL,Nico Hulkenberg,Haas F1 Team,10,,,""
+adc698eace770821bdaa3b6b41543b3d47bc3681,2024,1,FP3,2024_1,RIC,Daniel Ricciardo,RB,,,,""
+ec8fd5d6aca2c5d72c71d46e000817e50ba26974,2024,1,FP3,2024_1,SAI,Carlos Sainz,Ferrari,,,,""
+aa180e968a4ce37c11061e9878157ee79e2bbd6c,2024,1,FP2,2024_1,RIC,Daniel Ricciardo,RB,,,,""
+e4ef6a9f0187b564049716e41e72c65c3bd74fa0,2024,1,FP2,2024_1,STR,Lance Stroll,Aston Martin,,,,""
+20626cc1227f36646215deb240bbd56ebb56f24d,2024,1,FP2,2024_1,MAG,Kevin Magnussen,Haas F1 Team,,,,""
+65405ca23550caa1d567a7e67e7f4015610d9732,2024,1,FP2,2024_1,TSU,Yuki Tsunoda,RB,,,,""
+6986fe5db1f9de843a80afeef055ea85afb5dbdd,2024,1,FP3,2024_1,ALO,Fernando Alonso,Aston Martin,,,,""
+acafecb477f4f6c6c155d25f2af5c72b44c2c9b9,2024,1,Q,2024_1,VER,Max Verstappen,Red Bull Racing,1,,,""
+60c7eb391decc8510c5837aaa7183c4aea12d880,2024,1,Q,2024_1,NOR,Lando Norris,McLaren,7,,,""
+d32a3848a4b067597898be61a839d78be53f9347,2024,1,Q,2024_1,GAS,Pierre Gasly,Alpine,20,,,""
+c13b92000084ed26b77747b485239a1dc1963a0f,2024,1,FP3,2024_1,RUS,George Russell,Mercedes,,,,""
+ea2a359040848e8970babd43cb335a3947152e19,2024,1,FP1,2024_1,PIA,Oscar Piastri,McLaren,,,,""
+7b250597a06556a683af14657a9e875e212b96b4,2024,1,Q,2024_1,HAM,Lewis Hamilton,Mercedes,9,,,""
+038e8ab8c1da4c13cdaa43ab36a94bfcac007ee9,2024,1,Q,2024_1,RUS,George Russell,Mercedes,3,,,""
+fa1339c60563100c0e89256b1650ec1107a7b65e,2024,1,FP3,2024_1,VER,Max Verstappen,Red Bull Racing,,,,""
+4e41bfef0bd5a52b1fb8f697b954f27c0e179231,2024,1,Q,2024_1,PER,Sergio Perez,Red Bull Racing,5,,,""
+7c0f78ad16f37d004a1b9cd7db9269ffb5296e29,2024,1,FP3,2024_1,HAM,Lewis Hamilton,Mercedes,,,,""
+0d2049b7f6bb42ea3f6d466651ea259d69b29008,2024,1,Q,2024_1,ALO,Fernando Alonso,Aston Martin,6,,,""
+e167cfe9525a74eb32a3c5f93c9a750fff27f17f,2024,1,FP1,2024_1,MAG,Kevin Magnussen,Haas F1 Team,,,,""
+f602e964ce3f965e87ea7cfe34b1196fe793ef5e,2024,1,FP1,2024_1,OCO,Esteban Ocon,Alpine,,,,""
+caf05a5b2f0f903e831c32b1ec16989801df815c,2024,1,Q,2024_1,MAG,Kevin Magnussen,Haas F1 Team,15,,,""
+6cf00cfa75546582dd0227bed5e1b7473a838d1f,2024,1,FP1,2024_1,NOR,Lando Norris,McLaren,,,,""
+3ca0820eb6025147e9ff1146954f1b493c22449c,2024,1,FP2,2024_1,VER,Max Verstappen,Red Bull Racing,,,,""
+f65b1256915181d28b349e460b678cf4682397c9,2024,1,FP2,2024_1,ALO,Fernando Alonso,Aston Martin,,,,""
+d76af1616d0fd5db33947f538dff88bae7fd206d,2024,1,FP2,2024_1,ZHO,Guanyu Zhou,Kick Sauber,,,,""
+5fcc7195a0c985393e00fdcd81fed6c5c614716d,2024,1,R,2024_1,BOT,Valtteri Bottas,Kick Sauber,19,16,0.0,Lapped
+8bc471817655ac2d04e59a758da074a152ff393a,2024,1,FP2,2024_1,SAI,Carlos Sainz,Ferrari,,,,""
+7d1c75f4c008994254e69d30352495d849538978,2024,1,FP3,2024_1,LEC,Charles Leclerc,Ferrari,,,,""
+93274c93179ba055f2ebcf44c321392b15c88771,2024,1,Q,2024_1,ALB,Alexander Albon,Williams,13,,,""
+145899e4aef036adc5b08ed08d1c614b63a3c1db,2024,1,Q,2024_1,BOT,Valtteri Bottas,Kick Sauber,16,,,""
+11dc1e8e6c0bb0edbc74ec0950bb4322adc12614,2024,1,FP1,2024_1,RUS,George Russell,Mercedes,,,,""
+7685d30e79da3831f87518bac1a63c91ad7deeed,2024,1,Q,2024_1,STR,Lance Stroll,Aston Martin,12,,,""
+6f2c43c800559d36dcd71e76337290ff64850524,2024,1,Q,2024_1,OCO,Esteban Ocon,Alpine,19,,,""
+1ae06206407d988268e58a66df560a179434cb3c,2024,1,FP3,2024_1,ALB,Alexander Albon,Williams,,,,""
+c451940f4df0d8260859699c8a812d2166479b63,2024,1,R,2024_1,ALO,Fernando Alonso,Aston Martin,9,6,2.0,Finished
+691a3b69bc94bdfa869bd37763e0c6cdcb4cbc6a,2024,1,FP1,2024_1,ALB,Alexander Albon,Williams,,,,""
+d6639b92df453fbd74733aa77611ddaa42ce258c,2024,1,R,2024_1,RUS,George Russell,Mercedes,5,3,10.0,Finished
+4fed53d0b21b9f2e23d5f34486ceb9a4d3a21b5e,2024,1,Q,2024_1,ZHO,Guanyu Zhou,Kick Sauber,17,,,""
+8a7f81a97eb605ac14a5178fcacf1fb21d2b2558,2024,1,FP3,2024_1,ZHO,Guanyu Zhou,Kick Sauber,,,,""
+edc5ce0a03ab1d7a51d2245133445929692d8e00,2024,1,FP3,2024_1,OCO,Esteban Ocon,Alpine,,,,""
+6f4267dbba2be6e8ed828060befd962e55c99262,2024,1,R,2024_1,OCO,Esteban Ocon,Alpine,17,19,0.0,Lapped
+6a87234cb7d4b01fa6d344ba548d19f6bc00b568,2024,1,FP1,2024_1,GAS,Pierre Gasly,Alpine,,,,""
+641c2c3d70686b5d1f17e6ac857b6122e1b019ec,2024,1,FP1,2024_1,TSU,Yuki Tsunoda,RB,,,,""
+30f612f5f72959edb66801a70d40baab49f3cb1e,2024,1,FP2,2024_1,RUS,George Russell,Mercedes,,,,""
+037cd0a14d67bf90e6eae7e29a574eab2a17cfd4,2024,1,FP2,2024_1,PIA,Oscar Piastri,McLaren,,,,""
+99a8b6b9411056609de7d2ec3ed05d201a89e21f,2024,1,Q,2024_1,RIC,Daniel Ricciardo,RB,14,,,""
+e686be1f91c6761897150ddbc4174aaabeb521ce,2024,1,R,2024_1,HAM,Lewis Hamilton,Mercedes,7,9,6.0,Finished
+b1a1d340cd3859d9296fe50e568bd9c5b0eebb68,2024,1,FP3,2024_1,STR,Lance Stroll,Aston Martin,,,,""
+ad542d047b1724a45f84d15ba95e6d4663a5d315,2024,1,R,2024_1,PIA,Oscar Piastri,McLaren,8,8,4.0,Finished
+1b38c854a2523939c834339332b5fdaf653c1078,2024,1,FP1,2024_1,SAI,Carlos Sainz,Ferrari,,,,""
+ace3ca30413819cd6c7168e008a449f278bd79ed,2024,1,FP2,2024_1,NOR,Lando Norris,McLaren,,,,""
+b2d66dd4de8be0d9cf6e628690615c41a0536858,2024,1,FP2,2024_1,PER,Sergio Perez,Red Bull Racing,,,,""
+cb4fa8e4ce3b6aa1d19b55ddacc573c760e71799,2024,1,FP3,2024_1,PIA,Oscar Piastri,McLaren,,,,""
+146c45cae6240332fcdb3631054f54e71ac53410,2024,1,R,2024_1,LEC,Charles Leclerc,Ferrari,4,2,12.0,Finished
+1bb21f4926c61b36af91a0d441a3611d13b1a2af,2024,1,FP1,2024_1,RIC,Daniel Ricciardo,RB,,,,""
+9c3e19d7509f0194d62ca5447369ea303f44ab27,2024,1,FP1,2024_1,PER,Sergio Perez,Red Bull Racing,,,,""
+7205564bd9917c9b949fcbabb34d78477fb614b2,2024,1,FP1,2024_1,ALO,Fernando Alonso,Aston Martin,,,,""
+0937ae8aba80ed6b8106ffc69ff87509e88ca424,2024,1,FP2,2024_1,BOT,Valtteri Bottas,Kick Sauber,,,,""

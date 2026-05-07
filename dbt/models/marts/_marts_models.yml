@@ -1,0 +1,61 @@
+version: 2
+
+models:
+  - name: dim_drivers
+    description: "Latest known team and nationality per driver"
+    columns:
+      - name: driver_id
+        tests: [unique, not_null]
+
+  - name: dim_circuits
+    description: "Distinct circuits seen across the FastF1 schedule seeds"
+    columns:
+      - name: circuit_id
+        tests: [unique, not_null]
+
+  - name: dim_races
+    description: "Race calendar from FastF1 schedule seeds, keyed as {year}_{round}"
+    columns:
+      - name: race_key
+        tests: [unique, not_null]
+      - name: race_year
+        tests: [not_null]
+      - name: race_round
+        tests: [not_null]
+
+  - name: fact_race_results
+    description: "Per-driver race finishing results with race_key FK"
+    columns:
+      - name: record_id
+        tests: [unique, not_null]
+      - name: driver_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+
+  - name: fact_pit_stops
+    description: "Per-stop pit timing facts"
+    columns:
+      - name: record_id
+        tests: [unique, not_null]
+
+  - name: fact_weather_snapshots
+    description: "Per-session weather snapshots flattened for analytics"
+    columns:
+      - name: record_id
+        tests: [unique, not_null]
+
+  - name: driver_pace
+    description: "Aggregated lap-time stats per driver per session"
+    columns:
+      - name: driver
+        tests: [not_null]
+
+  - name: tire_performance
+    description: "Aggregated lap-time stats per tire compound"
+
+  - name: sector_analysis
+    description: "Average sector splits per driver per session"

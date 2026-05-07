@@ -1,0 +1,169 @@
+layer,table,column,type,units,nullable,is_key,allowed_values,source_field,description
+bronze,laps,data_type,string,,no,no,lap,,Discriminator constant
+bronze,laps,Driver,string,,no,part_of_record_id,,Lap.Driver,3-letter driver code
+bronze,laps,LapNumber,float,laps,no,part_of_record_id,,Lap.LapNumber,Lap index within session
+bronze,laps,LapTime,string,,no,part_of_record_id,,Lap.LapTime,HH:MM:SS:NNNN encoding
+bronze,laps,Sector1Time,string,,yes,no,,Lap.Sector1Time,HH:MM:SS:NNNN encoding
+bronze,laps,Sector2Time,string,,yes,no,,Lap.Sector2Time,HH:MM:SS:NNNN encoding
+bronze,laps,Sector3Time,string,,yes,no,,Lap.Sector3Time,HH:MM:SS:NNNN encoding
+bronze,laps,Compound,string,,yes,no,"SOFT,MEDIUM,HARD,INTERMEDIATE,WET,UNKNOWN",Lap.Compound,Tire compound (mixed case at bronze)
+bronze,laps,PitInTime_ms,int,ms_since_session_start,yes,no,,Lap.PitInTime,Pit-in time
+bronze,laps,PitOutTime_ms,int,ms_since_session_start,yes,no,,Lap.PitOutTime,Pit-out time
+bronze,laps,event_ts,string,iso8601_utc,no,no,,producer,Wall-clock at emit
+bronze,laps,race_year,int,,no,no,,assigned,Season year
+bronze,laps,race_round,int,,no,no,,assigned,Round number
+bronze,laps,session,string,,no,no,"FP1,FP2,FP3,Q,S,SQ,R",assigned,Session code
+bronze,laps,record_id,string,,no,PK,,computed,SHA-1 dedup key
+bronze,laps,_kafka_topic,string,,yes,no,,consumer,Kafka topic or 'backfill'
+bronze,laps,_kafka_partition,int,,yes,no,,consumer,Kafka partition or -1
+bronze,laps,_kafka_offset,int,,yes,no,,consumer,Kafka offset or -1
+bronze,laps,_kafka_timestamp,int,ms_since_epoch,yes,no,,consumer,Broker timestamp or -1
+bronze,laps,_bronze_written_at,string,iso8601_utc,no,no,,consumer,Bronze flush time
+bronze,race_results,record_id,string,,no,PK,,computed,SHA-1 dedup key
+bronze,race_results,race_year,int,,no,no,,assigned,Season year
+bronze,race_results,race_round,int,,no,no,,assigned,Round number
+bronze,race_results,session,string,,no,no,,assigned,Session code
+bronze,race_results,driver_id,string,,no,no,,Result.Abbreviation,Upper-cased driver code
+bronze,race_results,full_name,string,,yes,no,,Result.FullName,Driver full name
+bronze,race_results,team,string,,yes,no,,Result.TeamName,Constructor name
+bronze,race_results,nationality,string,,yes,no,,Result.CountryCode,3-letter country code
+bronze,race_results,position,int,,yes,no,,Result.Position,Final classified position
+bronze,race_results,grid_position,int,,yes,no,,Result.GridPosition,Starting grid slot
+bronze,race_results,points,float,points,yes,no,,Result.Points,Championship points
+bronze,race_results,status,string,,yes,no,,Result.Status,Free-text result status
+bronze,weather,record_id,string,,no,PK,,computed,SHA-1 dedup key
+bronze,weather,race_year,int,,no,no,,assigned,Season year
+bronze,weather,race_round,int,,no,no,,assigned,Round number
+bronze,weather,session,string,,no,no,,assigned,Session code
+bronze,weather,snapshot_index,int,,no,no,,assigned,Zero-based ordinal
+bronze,weather,time_offset_ms,int,ms_since_session_start,yes,no,,Weather.Time,Snapshot offset
+bronze,weather,air_temp_c,float,celsius,yes,no,,Weather.AirTemp,Ambient temperature
+bronze,weather,track_temp_c,float,celsius,yes,no,,Weather.TrackTemp,Track surface temp
+bronze,weather,humidity_pct,float,percent,yes,no,,Weather.Humidity,Relative humidity
+bronze,weather,pressure_mbar,float,mbar,yes,no,,Weather.Pressure,Atmospheric pressure
+bronze,weather,wind_speed_ms,float,m_per_s,yes,no,,Weather.WindSpeed,Wind speed
+bronze,weather,is_raining,bool,,yes,no,,Weather.Rainfall,Rain flag
+silver,lap_times,record_id,string,,no,PK,,bronze,Carried from bronze
+silver,lap_times,race_year,int,,no,no,,bronze,Season year
+silver,lap_times,race_round,int,,no,no,,bronze,Round number
+silver,lap_times,session,string,,no,no,,bronze,Session code
+silver,lap_times,event_timestamp,timestamp,utc,no,no,,parsed,event_ts as timestamp
+silver,lap_times,bronze_written_at,timestamp,utc,no,no,,parsed,Bronze flush time
+silver,lap_times,driver_id,string,,no,no,,normalized,Upper trimmed
+silver,lap_times,driver,string,,no,no,,alias,Backwards-compat alias of driver_id
+silver,lap_times,lap_number,int,laps,no,no,,cast,Lap index
+silver,lap_times,lap_time_ms,bigint,ms,no,no,,parsed,Parsed from HH:MM:SS:NNNN
+silver,lap_times,lap_time,bigint,ms,no,no,,alias,Backwards-compat alias of lap_time_ms
+silver,lap_times,sector1_ms,bigint,ms,yes,no,,parsed,Sector 1 split
+silver,lap_times,sector2_ms,bigint,ms,yes,no,,parsed,Sector 2 split
+silver,lap_times,sector3_ms,bigint,ms,yes,no,,parsed,Sector 3 split
+silver,lap_times,tire_compound,string,,yes,no,"SOFT,MEDIUM,HARD,INTERMEDIATE,WET,UNKNOWN",normalized,Upper trimmed
+silver,lap_times,PitInTime_ms,bigint,ms,yes,no,,bronze,Pit-in time
+silver,lap_times,PitOutTime_ms,bigint,ms,yes,no,,bronze,Pit-out time
+silver,race_results,record_id,string,,no,PK,,bronze,Carried from bronze
+silver,race_results,race_year,int,,no,no,,bronze,Season year
+silver,race_results,race_round,int,,no,no,,bronze,Round number
+silver,race_results,session,string,,no,no,,bronze,Session code
+silver,race_results,event_timestamp,timestamp,utc,no,no,,parsed,event_ts as timestamp
+silver,race_results,bronze_written_at,timestamp,utc,no,no,,parsed,Bronze flush time
+silver,race_results,driver_id,string,,no,no,,normalized,Upper trimmed
+silver,race_results,full_name,string,,yes,no,,bronze,Driver full name
+silver,race_results,team,string,,yes,no,,bronze,Constructor name
+silver,race_results,nationality,string,,yes,no,,bronze,3-letter country code
+silver,race_results,position,int,,yes,no,,bronze,Classified position
+silver,race_results,grid_position,int,,yes,no,,bronze,Starting grid slot
+silver,race_results,points,double,points,yes,no,,bronze,Championship points
+silver,race_results,status,string,,yes,no,,bronze,Result status
+silver,pit_stops,record_id,string,,no,PK,,bronze,Carried from lap row
+silver,pit_stops,race_year,int,,no,no,,bronze,Season year
+silver,pit_stops,race_round,int,,no,no,,bronze,Round number
+silver,pit_stops,session,string,,no,no,,bronze,Session code
+silver,pit_stops,driver_id,string,,no,no,,normalized,Upper trimmed
+silver,pit_stops,lap_number,int,laps,no,no,,cast,Lap of the stop
+silver,pit_stops,pit_in_ms,bigint,ms_since_session_start,no,no,,bronze,Pit-in time
+silver,pit_stops,pit_out_ms,bigint,ms_since_session_start,yes,no,,bronze,Pit-out time
+silver,pit_stops,tire_compound_before,string,,yes,no,"SOFT,MEDIUM,HARD,INTERMEDIATE,WET,UNKNOWN",normalized,Compound before stop
+silver,weather,record_id,string,,no,PK,,bronze,Carried from bronze
+silver,weather,race_year,int,,no,no,,bronze,Season year
+silver,weather,race_round,int,,no,no,,bronze,Round number
+silver,weather,session,string,,no,no,,bronze,Session code
+silver,weather,snapshot_index,int,,no,no,,bronze,Zero-based ordinal
+silver,weather,time_offset_ms,bigint,ms_since_session_start,yes,no,,bronze,Snapshot offset
+silver,weather,air_temp_c,double,celsius,yes,no,,bronze,Air temp
+silver,weather,track_temp_c,double,celsius,yes,no,,bronze,Track temp
+silver,weather,humidity_pct,double,percent,yes,no,,bronze,Humidity
+silver,weather,pressure_mbar,double,mbar,yes,no,,bronze,Pressure
+silver,weather,wind_speed_ms,double,m_per_s,yes,no,,bronze,Wind speed
+silver,weather,is_raining,bool,,yes,no,,bronze,Rain flag
+gold,driver_pace,race_year,int,,no,PK,,silver,Composite PK part
+gold,driver_pace,race_round,int,,no,PK,,silver,Composite PK part
+gold,driver_pace,session,string,,no,PK,,silver,Composite PK part
+gold,driver_pace,driver,string,,no,PK,,silver,Composite PK part
+gold,driver_pace,avg_lap_time_ms,double,ms,yes,no,,aggregated,Mean lap time per session
+gold,driver_pace,fastest_lap_ms,bigint,ms,yes,no,,aggregated,Min lap time per session
+gold,driver_pace,lap_std_dev_ms,double,ms,yes,no,,aggregated,Stddev of lap times
+gold,driver_pace,laps_completed,bigint,laps,no,no,,aggregated,Row count
+gold,tire_performance,race_year,int,,no,PK,,silver,Composite PK part
+gold,tire_performance,race_round,int,,no,PK,,silver,Composite PK part
+gold,tire_performance,session,string,,no,PK,,silver,Composite PK part
+gold,tire_performance,tire_compound,string,,no,PK,"SOFT,MEDIUM,HARD,INTERMEDIATE,WET,UNKNOWN",silver,Composite PK part
+gold,tire_performance,avg_lap_time_ms,double,ms,yes,no,,aggregated,Mean lap time per compound
+gold,tire_performance,laps_run,bigint,laps,no,no,,aggregated,Row count
+gold,sector_analysis,race_year,int,,no,PK,,silver,Composite PK part
+gold,sector_analysis,race_round,int,,no,PK,,silver,Composite PK part
+gold,sector_analysis,session,string,,no,PK,,silver,Composite PK part
+gold,sector_analysis,driver,string,,no,PK,,silver,Composite PK part
+gold,sector_analysis,avg_sector1_ms,double,ms,yes,no,,aggregated,Mean sector 1
+gold,sector_analysis,avg_sector2_ms,double,ms,yes,no,,aggregated,Mean sector 2
+gold,sector_analysis,avg_sector3_ms,double,ms,yes,no,,aggregated,Mean sector 3
+gold,dim_drivers,driver_id,string,,no,PK,,silver,Upper-cased 3-letter
+gold,dim_drivers,full_name,string,,yes,no,,silver,Latest full name
+gold,dim_drivers,team,string,,yes,no,,silver,Most recent team
+gold,dim_drivers,nationality,string,,yes,no,,silver,Most recent country
+gold,dim_drivers,_updated_at,timestamp,utc,no,no,,assigned,Refresh time
+gold,dim_circuits,circuit_id,string,,no,PK,,fastf1_schedule,Slug from Location
+gold,dim_circuits,circuit_name,string,,yes,no,,fastf1_schedule,OfficialEventName
+gold,dim_circuits,country,string,,yes,no,,fastf1_schedule,Country
+gold,dim_circuits,locality,string,,yes,no,,fastf1_schedule,Location
+gold,dim_circuits,_updated_at,string,iso8601_utc,no,no,,assigned,Refresh time
+gold,dim_races,race_key,string,,no,PK,,fastf1_schedule,year_round
+gold,dim_races,race_year,int,,no,no,,fastf1_schedule,Season year
+gold,dim_races,race_round,int,,no,no,,fastf1_schedule,Round number
+gold,dim_races,race_name,string,,yes,no,,fastf1_schedule,EventName
+gold,dim_races,circuit_id,string,,yes,FK,,fastf1_schedule,FK to dim_circuits
+gold,dim_races,race_date,string,iso_date,yes,no,,fastf1_schedule,EventDate
+gold,fact_race_results,record_id,string,,no,no,,silver,Carried
+gold,fact_race_results,race_year,int,,no,no,,silver,Season year
+gold,fact_race_results,race_round,int,,no,no,,silver,Round number
+gold,fact_race_results,session,string,,no,no,,silver,Session code
+gold,fact_race_results,race_key,string,,no,FK,,computed,FK to dim_races
+gold,fact_race_results,driver_id,string,,no,FK,,silver,FK to dim_drivers
+gold,fact_race_results,full_name,string,,yes,no,,silver,Denormalized
+gold,fact_race_results,team,string,,yes,no,,silver,Denormalized
+gold,fact_race_results,position,int,,yes,no,,silver,Classified position
+gold,fact_race_results,grid_position,int,,yes,no,,silver,Starting grid slot
+gold,fact_race_results,points,double,points,yes,no,,silver,Championship points
+gold,fact_race_results,status,string,,yes,no,,silver,Result status
+gold,fact_pit_stops,record_id,string,,no,no,,silver,Carried
+gold,fact_pit_stops,race_year,int,,no,no,,silver,Season year
+gold,fact_pit_stops,race_round,int,,no,no,,silver,Round number
+gold,fact_pit_stops,session,string,,no,no,,silver,Session code
+gold,fact_pit_stops,race_key,string,,no,FK,,computed,FK to dim_races
+gold,fact_pit_stops,driver_id,string,,no,FK,,silver,FK to dim_drivers
+gold,fact_pit_stops,lap_number,int,laps,no,no,,silver,Lap of the stop
+gold,fact_pit_stops,pit_in_ms,bigint,ms_since_session_start,no,no,,silver,Pit-in time
+gold,fact_pit_stops,pit_out_ms,bigint,ms_since_session_start,yes,no,,silver,Pit-out time
+gold,fact_pit_stops,tire_compound_before,string,,yes,no,"SOFT,MEDIUM,HARD,INTERMEDIATE,WET,UNKNOWN",silver,Compound before stop
+gold,fact_weather_snapshots,record_id,string,,no,no,,silver,Carried
+gold,fact_weather_snapshots,race_year,int,,no,no,,silver,Season year
+gold,fact_weather_snapshots,race_round,int,,no,no,,silver,Round number
+gold,fact_weather_snapshots,session,string,,no,no,,silver,Session code
+gold,fact_weather_snapshots,race_key,string,,no,FK,,computed,FK to dim_races
+gold,fact_weather_snapshots,snapshot_index,int,,no,no,,silver,Zero-based ordinal
+gold,fact_weather_snapshots,time_offset_ms,bigint,ms_since_session_start,yes,no,,silver,Snapshot offset
+gold,fact_weather_snapshots,air_temp_c,double,celsius,yes,no,,silver,Air temp
+gold,fact_weather_snapshots,track_temp_c,double,celsius,yes,no,,silver,Track temp
+gold,fact_weather_snapshots,humidity_pct,double,percent,yes,no,,silver,Humidity
+gold,fact_weather_snapshots,pressure_mbar,double,mbar,yes,no,,silver,Pressure
+gold,fact_weather_snapshots,wind_speed_ms,double,m_per_s,yes,no,,silver,Wind speed
+gold,fact_weather_snapshots,is_raining,bool,,yes,no,,silver,Rain flag

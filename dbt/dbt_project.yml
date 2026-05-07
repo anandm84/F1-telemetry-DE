@@ -1,0 +1,47 @@
+name: f1_telemetry
+version: 1.0.0
+config-version: 2
+
+profile: f1_telemetry
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+snapshot-paths: ["snapshots"]
+analysis-paths: ["analyses"]
+
+target-path: target
+clean-targets:
+  - target
+  - dbt_packages
+
+models:
+  f1_telemetry:
+    staging:
+      +materialized: table
+      +schema: silver
+    intermediate:
+      +materialized: table
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: gold
+
+seeds:
+  f1_telemetry:
+    +schema: seeds
+    circuits:
+      +column_types:
+        circuit_id: VARCHAR
+        circuit_name: VARCHAR
+        country: VARCHAR
+        locality: VARCHAR
+    races:
+      +column_types:
+        race_key: VARCHAR
+        race_year: INTEGER
+        race_round: INTEGER
+        race_name: VARCHAR
+        circuit_id: VARCHAR
+        race_date: VARCHAR

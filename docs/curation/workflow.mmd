@@ -1,0 +1,170 @@
+%% F1 Telemetry Curation Workflow (dbt + DuckDB stack)
+%% Render: mmdc -i workflow.mmd -o workflow.png  (using @mermaid-js/mermaid-cli)
+%% Each subgraph corresponds to a stage of the data lifecycle adopted by this project:
+%%   Planning → Acquisition → Quality/Processing → Documentation → Storage → Reproducibility → Preservation
+
+flowchart TB
+    classDef upstream fill:#fde4cf,stroke:#b25d00,color:#000
+    classDef ingest   fill:#cfe8fc,stroke:#0a58ca,color:#000
+    classDef bronze   fill:#f7e1a8,stroke:#a86d00,color:#000
+    classDef silver   fill:#d6d6d6,stroke:#444,color:#000
+    classDef gold     fill:#f8d471,stroke:#9a6e00,color:#000
+    classDef seed     fill:#e1f0d7,stroke:#3d6b1e,color:#000
+    classDef docs     fill:#d8f5d4,stroke:#1b6f1b,color:#000
+    classDef archive  fill:#e0d4f7,stroke:#4b1f9a,color:#000
+
+    %% ── Acquisition ─────────────────────────────────────
+    subgraph A["Acquisition (lifecycle stage 2)"]
+        FOM[Formula One Management<br/>F1 timing service]
+        FastF1["FastF1 (Python lib)<br/>local cache"]
+        Jolpica["Jolpica-F1 schedule"]
+        FOM --> FastF1
+        Jolpica --> FastF1
+    end
+    class FOM,FastF1,Jolpica upstream
+
+    %% ── Producer / Backfill / Schedule loader ──────────
+    subgraph I["Ingest"]
+        Producer["ingestion/producer.py<br/>(streaming via Kafka)"]
+        Backfill["ingestion/backfill.py<br/>(historical, resumable manifest)"]
+        SchedLoader["ingestion/load_schedules.py<br/>(FastF1 schedule → dbt seeds)"]
+        FastF1 --> Producer
+        FastF1 --> Backfill
+        FastF1 --> SchedLoader
+    end
+    class Producer,Backfill,SchedLoader ingest
+
+    %% ── Kafka topics ────────────────────────────────────
+    subgraph K["Kafka topics"]
+        T1[(f1_lap_times)]
+        T2[(f1_race_results)]
+        T3[(f1_weather)]
+    end
+    Producer --> T1
+    Producer --> T2
+    Producer --> T3
+
+    %% ── Bronze consumers ────────────────────────────────
+    subgraph C["Bronze consumers"]
+        BC1["bronze_consumer.py"]
+        BC2["results_consumer.py"]
+        BC3["weather_consumer.py"]
+    end
+    T1 --> BC1
+    T2 --> BC2
+    T3 --> BC3
+
+    %% ── Bronze layer ───────────────────────────────────
+    subgraph B["Bronze layer (NDJSON, partitioned by session)"]
+        BL["data/bronze/laps/{year}_{round}_{session}/"]
+        BR["data/bronze/race_results/{year}_{round}_{session}/"]
+        BW["data/bronze/weather/{year}_{round}_{session}/"]
+    end
+    BC1 --> BL
+    BC2 --> BR
+    BC3 --> BW
+    Backfill --> BL
+    Backfill --> BR
+    Backfill --> BW
+    class BL,BR,BW bronze
+
+    %% ── Seeds (from FastF1 schedule) ───────────────────
+    subgraph SD["dbt seeds (CSV, version-controlled)"]
+        SC["dbt/seeds/circuits.csv"]
+        SR2["dbt/seeds/races.csv"]
+    end
+    SchedLoader --> SC
+    SchedLoader --> SR2
+    class SC,SR2 seed
+
+    %% ── Silver layer (dbt staging tables in DuckDB) ────
+    subgraph S["Silver, main_silver.* in DuckDB"]
+        SL["stg_laps"]
+        SP["stg_pit_stops"]
+        SR["stg_race_results"]
+        SW["stg_weather"]
+    end
+    BL -.->|dbt bronze_read macro| SL
+    BL -.->|dbt bronze_read macro| SP
+    BR -.->|dbt bronze_read macro| SR
+    BW -.->|dbt bronze_read macro| SW
+    class SL,SP,SR,SW silver
+
+    %% ── Intermediate ──────────────────────────────────
+    INT["int_drivers_latest<br/>(window pick: latest team per driver)"]
+    SR --> INT
+    class INT silver
+
+    %% ── Gold layer (dbt marts in DuckDB) ───────────────
+    subgraph G["Gold, main_gold.* in DuckDB (star-schema)"]
+        GA1["driver_pace"]
+        GA2["tire_performance"]
+        GA3["sector_analysis"]
+        GD1["dim_drivers"]
+        GD2["dim_circuits"]
+        GD3["dim_races"]
+        GF1["fact_race_results"]
+        GF2["fact_pit_stops"]
+        GF3["fact_weather_snapshots"]
+    end
+    SL --> GA1
+    SL --> GA2
+    SL --> GA3
+    INT --> GD1
+    SC --> GD2
+    SR2 --> GD3
+    SR --> GF1
+    SP --> GF2
+    SW --> GF3
+    SR -.->|active years filter| GD2
+    SR -.->|active years filter| GD3
+    class GA1,GA2,GA3,GD1,GD2,GD3,GF1,GF2,GF3 gold
+
+    %% ── DuckDB warehouse file ─────────────────────────
+    DUCK[("data/warehouse.duckdb<br/>single-file warehouse")]
+    SL --> DUCK
+    GA1 --> DUCK
+
+    %% ── dbt tests (built-in quality contract) ─────────
+    DBT_TESTS["dbt test:<br/>not_null, unique, relationships<br/>declared in _stg_models.yml / _marts_models.yml"]
+    SL -.-> DBT_TESTS
+    GD1 -.-> DBT_TESTS
+    GF1 -.-> DBT_TESTS
+    class DBT_TESTS docs
+
+    %% ── Documentation ─────────────────────────────────
+    subgraph D["Documentation (lifecycle stage 4)"]
+        DD["data_dictionary.md/.csv"]
+        MD["metadata.xml / .json"]
+        PR["PROVENANCE.md / prov.jsonld"]
+        CL["CLEANING_LOG.md"]
+        LI["LICENSING.md"]
+        REPO["REPRODUCE.md"]
+        REP["REPORT.pdf"]
+    end
+    class DD,MD,PR,CL,LI,REPO,REP docs
+
+    %% ── Preservation ──────────────────────────────────
+    subgraph Z["Preservation (lifecycle stage 7)"]
+        SAMPLE["sample_output bundle<br/>(Parquet + CSV + NDJSON excerpt)"]
+        CK["checksums.sha256"]
+        ZEN["Zenodo deposit (DOI)"]
+    end
+    GA1 -.-> SAMPLE
+    GF1 -.-> SAMPLE
+    SL -.-> SAMPLE
+    BL -.-> SAMPLE
+    SAMPLE --> CK
+    CK --> ZEN
+    DD --> ZEN
+    MD --> ZEN
+    PR --> ZEN
+    REP --> ZEN
+    class SAMPLE,CK,ZEN archive
+
+    %% ── Orchestration ─────────────────────────────────
+    AF["Airflow DAGs:<br/>f1_pipeline, f1_backfill"]
+    AF -.->|orchestrates| Producer
+    AF -.->|orchestrates| BC1
+    AF -.->|orchestrates| SchedLoader
+    AF -.->|invokes 'dbt build'| DUCK
